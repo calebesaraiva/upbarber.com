@@ -8,7 +8,7 @@ import { validate } from "../shared/middleware/validate.js";
 import { authenticate, enforceTenantAccess, signAccessToken, signRefreshToken, type TokenPayload } from "../shared/middleware/auth.js";
 import { env } from "../shared/env.js";
 import { AppError, created, ok } from "../shared/utils/http.js";
-import { emailLayout, sendMail } from "../shared/utils/mail.js";
+import { emailCode, emailLayout, emailParagraph, sendMail } from "../shared/utils/mail.js";
 
 const router = Router();
 
@@ -159,8 +159,26 @@ const hash = (value: string) => crypto.createHash("sha256").update(value).digest
 async function issueCode(userId: string, purpose: string, email: string) {
   const code = String(crypto.randomInt(100000, 1000000));
   await prisma.authCode.create({ data: { userId, purpose, codeHash: hash(code), expiresAt: new Date(Date.now() + 15 * 60 * 1000) } });
-  await sendMail(email, purpose === "reset_password" ? "Código para redefinir sua senha" : "Código de verificação UpBarber",
-    emailLayout("Código de segurança", `<p>Use o código abaixo. Ele expira em 15 minutos.</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p>`));
+  const isReset = purpose === "reset_password";
+  await sendMail(
+    email,
+    isReset ? "Código para redefinir sua senha UpBarber" : "Código de verificação UpBarber",
+    emailLayout(
+      isReset ? "Vamos proteger seu acesso" : "Confirme seu acesso ao UpBarber",
+      `${emailParagraph(isReset
+        ? "Recebemos uma solicitação para redefinir sua senha. Use o código abaixo para criar uma nova senha com segurança."
+        : "Seu cadastro está quase pronto. Confirme este código para validar seu email e seguir para a análise da sua barbearia."
+      )}
+      ${emailCode(code)}
+      ${emailParagraph("Este código expira em 15 minutos. Se você não solicitou esta ação, pode ignorar este email com segurança.")}`,
+      {
+        eyebrow: isReset ? "Segurança da conta" : "Cadastro em andamento",
+        preheader: isReset ? "Use seu código para redefinir a senha no UpBarber." : "Use seu código para confirmar o cadastro no UpBarber.",
+        footerNote: "Nunca compartilhe este código com terceiros. A equipe UpBarber não solicita sua senha por email.",
+        tone: isReset ? "blue" : "gold"
+      }
+    )
+  );
 }
 
 async function consumeCode(userId: string, purpose: string, code: string) {

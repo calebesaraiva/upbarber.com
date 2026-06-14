@@ -9,7 +9,7 @@ import { authorizeMaster, signMasterToken } from "../shared/middleware/master-au
 import { signAccessToken } from "../shared/middleware/auth.js";
 import { AppError, created, noContent, ok, paginated } from "../shared/utils/http.js";
 import { pagination, textSearch } from "../shared/utils/query.js";
-import { emailLayout, sendMail } from "../shared/utils/mail.js";
+import { emailButton, emailCopyBox, emailInfoRows, emailLayout, emailParagraph, emailSteps, escapeHtml, sendMail } from "../shared/utils/mail.js";
 import { createPixCharge, createPixPayload } from "../shared/utils/pix.js";
 import { env } from "../shared/env.js";
 
@@ -159,8 +159,25 @@ router.post("/invites", validate({ body: z.object({ email: z.string().email(), e
     data: { email: req.body.email.toLowerCase(), tokenHash: sha256(token), expiresAt: new Date(Date.now() + req.body.expiresInDays * 86400000) }
   });
   const url = `${env.APP_URL.replace(/\/$/, "")}/cadastro?invite=${token}&email=${encodeURIComponent(invite.email)}`;
-  await sendMail(invite.email, "Convite para cadastrar sua barbearia no UpBarber",
-    emailLayout("Você foi convidado", `<p>Preencha o cadastro da sua barbearia. Após o envio, ele ficará em análise.</p><p><a href="${url}">Fazer cadastro</a></p>`));
+  await sendMail(
+    invite.email,
+    "Convite para cadastrar sua barbearia no UpBarber",
+    emailLayout(
+      "Sua barbearia foi convidada para o UpBarber",
+      `${emailParagraph("Você recebeu um convite para entrar na plataforma que organiza agenda, clientes, equipe, financeiro e rotina da barbearia em um único painel.")}
+      ${emailSteps([
+        "Preencha o cadastro da sua barbearia com os dados principais.",
+        "Confirme seu email com o código de segurança enviado pelo UpBarber.",
+        "Aguarde a aprovação do cadastro pelo painel master para liberar o acesso."
+      ])}
+      ${emailButton("Cadastrar minha barbearia", url)}`,
+      {
+        eyebrow: "Convite exclusivo",
+        preheader: "Cadastre sua barbearia no UpBarber e aguarde a aprovação.",
+        footerNote: "Este convite é pessoal e tem prazo de validade. Caso expire, solicite um novo acesso ao suporte UpBarber."
+      }
+    )
+  );
   return created(res, { id: invite.id, email: invite.email, expiresAt: invite.expiresAt });
 });
 
@@ -177,7 +194,26 @@ router.patch("/registrations/:id/approve", validate({ params: idParams, body: z.
     return updated;
   });
   const owner = await prisma.user.findFirst({ where: { barbershopId: shop.id, role: "admin" } });
-  if (owner) await sendMail(owner.email, "Cadastro UpBarber aprovado", emailLayout("Cadastro aprovado", "<p>Seu acesso ao UpBarber foi liberado.</p>"));
+  if (owner) await sendMail(
+    owner.email,
+    "Cadastro UpBarber aprovado",
+    emailLayout(
+      "Cadastro aprovado. Bem-vindo ao UpBarber",
+      `${emailParagraph("Seu acesso foi liberado e sua barbearia já pode usar o painel para gerenciar agenda, clientes, equipe, serviços e financeiro.")}
+      ${emailInfoRows([
+        ["Barbearia", shop.name],
+        ["Status", "Acesso aprovado"],
+        ["Pagamento", "Pix habilitado"]
+      ])}
+      ${emailButton("Entrar no painel", `${env.APP_URL.replace(/\/$/, "")}/login`)}`,
+      {
+        eyebrow: "Acesso liberado",
+        preheader: "Seu cadastro UpBarber foi aprovado.",
+        footerNote: "Recomendamos completar os dados da barbearia e revisar os horários de atendimento no primeiro acesso.",
+        tone: "green"
+      }
+    )
+  );
   return ok(res, shop);
 });
 
@@ -263,7 +299,29 @@ router.post("/invoices/:id/charge", validate({ params: idParams, body: z.object(
   const charge = await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`);
   await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { paymentMethod: "pix", pixPayload: charge.copyPaste } });
   const email = invoice.barbershop.users[0]?.email ?? invoice.barbershop.email;
-  if (email) await sendMail(email, `Cobrança UpBarber - ${invoice.barbershop.name}`, emailLayout("Pagamento via Pix", `<p>Valor: <strong>R$ ${Number(invoice.amount).toFixed(2)}</strong></p><p>Vencimento: ${invoice.dueDate.toLocaleDateString("pt-BR")}</p><p>Chave Pix CNPJ: 52.671.137/0001-71 - Banco do Brasil</p><p style="word-break:break-all">${charge.copyPaste}</p>`));
+  if (email) await sendMail(
+    email,
+    `Cobrança UpBarber - ${invoice.barbershop.name}`,
+    emailLayout(
+      "Sua cobrança UpBarber chegou",
+      `${emailParagraph("Para manter o acesso da sua barbearia ativo, realize o pagamento via Pix usando o código abaixo. O valor acompanha o plano contratado.")}
+      ${emailInfoRows([
+        ["Barbearia", invoice.barbershop.name],
+        ["Valor", `R$ ${Number(invoice.amount).toFixed(2)}`],
+        ["Vencimento", invoice.dueDate.toLocaleDateString("pt-BR")],
+        ["Forma de pagamento", "Pix"],
+        ["Chave Pix CNPJ", "52.671.137/0001-71"],
+        ["Banco", "Banco do Brasil"]
+      ])}
+      ${emailCopyBox(charge.copyPaste)}
+      ${emailButton("Abrir meu painel", `${env.APP_URL.replace(/\/$/, "")}/login`)}`,
+      {
+        eyebrow: "Pagamento Pix",
+        preheader: `Cobrança UpBarber no valor de R$ ${Number(invoice.amount).toFixed(2)}.`,
+        footerNote: "A compensação pode depender da conferência do pagamento. Guarde o comprovante após realizar o Pix."
+      }
+    )
+  );
   return ok(res, charge);
 });
 
@@ -354,7 +412,23 @@ router.post("/notices", validate({ body: z.object({ barbershopId: z.string().opt
   for (const shop of shops) {
     await prisma.notification.create({ data: { barbershopId: shop.id, type: "info", title: req.body.title, message: req.body.message } });
     if (req.body.sendEmail) for (const owner of shop.users) {
-      await sendMail(owner.email, req.body.title, emailLayout(req.body.title, `<p>${req.body.message}</p>`));
+      const messageHtml = escapeHtml(req.body.message).replace(/\r?\n/g, "<br>");
+      await sendMail(
+        owner.email,
+        req.body.title,
+        emailLayout(
+          req.body.title,
+          `<p style="margin:0 0 18px;color:#374151;font-size:16px;line-height:25px">${messageHtml}</p>
+          ${emailInfoRows([["Barbearia", shop.name], ["Origem", "Painel master UpBarber"]])}
+          ${emailButton("Abrir UpBarber", `${env.APP_URL.replace(/\/$/, "")}/login`)}`,
+          {
+            eyebrow: "Comunicado UpBarber",
+            preheader: req.body.message.slice(0, 120),
+            footerNote: "Este comunicado foi enviado pela administração da plataforma UpBarber.",
+            tone: "blue"
+          }
+        )
+      );
       emails++;
     }
   }
