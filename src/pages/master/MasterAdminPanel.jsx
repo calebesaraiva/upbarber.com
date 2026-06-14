@@ -298,7 +298,7 @@ function DashboardSection() {
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie data={planDist} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value">
-                    {planDist.map((d, i) => <Cell key={i} fill={d.color} />)}
+                    {planDist.map((d) => <Cell key={d.name} fill={d.color} />)}
                   </Pie>
                   <Tooltip contentStyle={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 8 }} />
                 </PieChart>
@@ -368,14 +368,17 @@ function ModulesEditor({ barbershopId, P }) {
 
   useEffect(() => {
     if (!barbershopId) return;
+    let cancelled = false;
     getBarbershopModules(barbershopId).then(r => {
+      if (cancelled) return;
       const d = r.data?.data ?? r.data;
       setData(d);
       const mods = Array.isArray(d?.enabledModules) && d.enabledModules.length > 0
         ? d.enabledModules
         : ALL_MODULES_CONFIG.map(m => m.key);
       setEnabled(mods);
-    }).catch(() => setEnabled(ALL_MODULES_CONFIG.map(m => m.key)));
+    }).catch(() => { if (!cancelled) setEnabled(ALL_MODULES_CONFIG.map(m => m.key)); });
+    return () => { cancelled = true; };
   }, [barbershopId]);
 
   const toggle = (key) => setEnabled(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
@@ -469,11 +472,14 @@ function BarbeariasSection() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
+    let cancelled = false;
     getMasterPlans().then(res => {
+      if (cancelled) return;
       const rows = unwrap(res.data) ?? [];
       setPlans(rows);
       setNewShop(current => ({ ...current, planId: current.planId || rows[0]?.id || "" }));
-    }).catch(() => setPlans([]));
+    }).catch(() => { if (!cancelled) setPlans([]); });
+    return () => { cancelled = true; };
   }, []);
 
   const handleCreate = async () => {
@@ -494,9 +500,35 @@ function BarbeariasSection() {
   };
   const loadPending = () => getPendingRegistrations().then(r=>setPending(unwrap(r.data)||[]));
   useEffect(()=>{loadPending()},[]);
-  const sendInvite = async()=>{await inviteBarbershopOwner({email:inviteEmail,expiresInDays:7});setInviteEmail("");alert("Convite enviado por email")};
-  const approve = async shop=>{const planId=plans[0]?.id;if(!planId)return;await approveRegistration(shop.id,{planId,dueDate:new Date(Date.now()+30*86400000).toISOString()});await loadPending();await load()};
-  const sendNotice = async()=>{await sendMasterNotice(notice);setNotice({title:"",message:"",sendEmail:true});alert("Aviso enviado")};
+  const sendInvite = async () => {
+    try {
+      await inviteBarbershopOwner({ email: inviteEmail, expiresInDays: 7 });
+      setInviteEmail("");
+      alert("Convite enviado por email");
+    } catch (e) {
+      alert("Erro ao enviar convite: " + (e.response?.data?.error?.message || e.message));
+    }
+  };
+  const approve = async (shop) => {
+    const planId = plans[0]?.id;
+    if (!planId) return;
+    try {
+      await approveRegistration(shop.id, { planId, dueDate: new Date(Date.now() + 30 * 86400000).toISOString() });
+      await loadPending();
+      await load();
+    } catch (e) {
+      alert("Erro ao aprovar: " + (e.response?.data?.error?.message || e.message));
+    }
+  };
+  const sendNotice = async () => {
+    try {
+      await sendMasterNotice(notice);
+      setNotice({ title: "", message: "", sendEmail: true });
+      alert("Aviso enviado");
+    } catch (e) {
+      alert("Erro ao enviar aviso: " + (e.response?.data?.error?.message || e.message));
+    }
+  };
 
   const handleSuspend = async () => {
     if (!selected) return;
@@ -528,7 +560,7 @@ function BarbeariasSection() {
     try {
       const res = await impersonateBarbershop(b.id);
       const data = unwrap(res.data);
-      localStorage.setItem("upbarber:token", data.impersonateToken);
+      localStorage.setItem("upbarber:token", data?.impersonateToken);
       window.location.href = "/dashboard";
     } catch (e) {
       alert("Erro ao impersonar: " + (e.response?.data?.error?.message || e.message));
@@ -548,7 +580,7 @@ function BarbeariasSection() {
         setSaving(false);
         return;
       }
-      await chargeInvoice(invoices[0].id, { method: "pix" });
+      await chargeInvoice(invoices[0].id, { method: chargeMethod.toLowerCase() });
       setModal(null);
       alert("Cobrança realizada com sucesso!");
       await load();
