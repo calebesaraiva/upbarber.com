@@ -14,6 +14,7 @@ import { buildOpenApiDocument } from "./swagger.js";
 
 export function createApp() {
   const app = express();
+  if (env.NODE_ENV === "production") app.set("trust proxy", 1);
 
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(cors({
