@@ -18,4 +18,6 @@ export const settingsService = {
   deleteUser: (id) => api.delete(`/users/${id}`),
   getSaasPlans: () => api.get('/saas/plans'),
   getCurrentSaasInvoice: () => api.get('/saas/invoices/current'),
+  getSaasPlanChangeRequests: () => api.get('/saas/plan-change-requests'),
+  requestSaasPlanChange: (data) => api.post('/saas/plan-change-requests', data),
 };

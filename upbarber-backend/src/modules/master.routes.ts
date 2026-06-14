@@ -302,6 +302,59 @@ router.patch("/registrations/:id/reject", validate({ params: idParams }), async 
   return ok(res, shop);
 });
 
+router.get("/plan-change-requests", async (_req, res) => ok(res, await prisma.saasPlanChangeRequest.findMany({
+  where: { status: "pending" },
+  include: {
+    barbershop: { include: { users: { where: { role: "admin" }, take: 1 } } },
+    currentPlan: true,
+    targetPlan: true
+  },
+  orderBy: { createdAt: "desc" }
+})));
+
+router.patch("/plan-change-requests/:id/approve", validate({ params: idParams, body: z.object({ dueDate: z.coerce.date().optional() }) }), async (req, res) => {
+  const request = await prisma.saasPlanChangeRequest.findFirstOrThrow({
+    where: { id: req.params.id, status: "pending" },
+    include: { targetPlan: true, barbershop: true }
+  });
+  const dueDate = req.body.dueDate ?? new Date(Date.now() + 30 * 86400000);
+  const updated = await prisma.$transaction(async tx => {
+    const shop = await tx.barbershop.update({
+      where: { id: request.barbershopId },
+      data: {
+        saasStatus: "active",
+        subscriptionStatus: "active",
+        saasPlanId: request.targetPlanId,
+        saasPlansId: request.targetPlanId,
+        approvalStatus: "approved"
+      }
+    });
+    await tx.saasPlanChangeRequest.update({
+      where: { id: request.id },
+      data: { status: "approved", reviewedByMasterId: req.masterAdmin.adminId, reviewedAt: new Date() }
+    });
+    await tx.saasInvoice.create({
+      data: {
+        barbershopId: shop.id,
+        amount: request.targetPlan.price,
+        dueDate,
+        paymentMethod: "pix",
+        pixPayload: createPixPayload(Number(request.targetPlan.price), `UPB${shop.id.slice(-12)}`)
+      }
+    });
+    return shop;
+  });
+  return ok(res, updated);
+});
+
+router.patch("/plan-change-requests/:id/reject", validate({ params: idParams }), async (req, res) => {
+  const request = await prisma.saasPlanChangeRequest.update({
+    where: { id: req.params.id },
+    data: { status: "rejected", reviewedByMasterId: req.masterAdmin.adminId, reviewedAt: new Date() }
+  });
+  return ok(res, request);
+});
+
 router.get("/barbershops/:id", validate({ params: idParams }), async (req, res) => {
   const shop = await prisma.barbershop.findUniqueOrThrow({
     where: { id: req.params.id },

@@ -39,6 +39,9 @@ import {
   createMasterPlan,
   updateMasterPlan,
   deleteMasterPlan,
+  getMasterPlanChangeRequests,
+  approveMasterPlanChangeRequest,
+  rejectMasterPlanChangeRequest,
   getMasterBarbershopById,
   getMasterMrrHistory,
   getMasterRevenueByPlan,
@@ -83,6 +86,11 @@ const PLAN_COLORS = ["#6B7280", "#8B5CF6", "#F59E0B", "#3B82F6", "#10B981"];
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) => "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 const fmtK = (n) => n >= 1000 ? `R$ ${(n / 1000).toFixed(1)}k` : `R$ ${n}`;
+const buildDueDate = (days = 30) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return localDateInputValue(d);
+};
 const safeUnwrap = (res) => {
   const d = unwrap(res.data);
   return d?.rows ?? d?.data ?? d ?? [];
@@ -448,7 +456,7 @@ function BarbeariasSection() {
   const [plans, setPlans] = useState([]);
   const [newShop, setNewShop] = useState({
     barbershopName: "", ownerName: "", ownerEmail: "", ownerPassword: "",
-    planId: "", dueDate: localDateInputValue(new Date(Date.now() + 30 * 86400000)),
+    planId: "", dueDate: buildDueDate(30),
     paymentMethod: "pix", invoiceStatus: "pending", trialDays: "", phone: "", city: "", state: "",
   });
   const [inviteEmail, setInviteEmail] = useState("");
@@ -517,7 +525,7 @@ function BarbeariasSection() {
     const planId = plans[0]?.id;
     if (!planId) return;
     try {
-      await approveRegistration(shop.id, { planId, dueDate: localDateInputValue(new Date(Date.now() + 30 * 86400000)) });
+      await approveRegistration(shop.id, { planId, dueDate: buildDueDate(30) });
       await loadPending();
       await load();
     } catch (e) {
@@ -1009,6 +1017,7 @@ const EMPTY_PLAN = { name: "", slug: "", price: "", annualPrice: "", features: [
 
 function PlanosSection() {
   const [plans, setPlans] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -1020,9 +1029,14 @@ function PlanosSection() {
     setLoading(true);
     setError(null);
     try {
-      const res = await getMasterPlans();
-      const data = unwrap(res.data);
+      const [plansRes, requestsRes] = await Promise.all([
+        getMasterPlans(),
+        getMasterPlanChangeRequests(),
+      ]);
+      const data = unwrap(plansRes.data);
       setPlans(Array.isArray(data) ? data : []);
+      const reqData = unwrap(requestsRes.data);
+      setRequests(Array.isArray(reqData) ? reqData : []);
     } catch (e) {
       setError(e.response?.data?.error?.message || e.message);
     } finally {
@@ -1080,6 +1094,24 @@ function PlanosSection() {
     }
   };
 
+  const approveRequest = async (request) => {
+    try {
+      await approveMasterPlanChangeRequest(request.id, {});
+      await load();
+    } catch (e) {
+      alert("Erro ao aprovar migração: " + (e.response?.data?.error?.message || e.message));
+    }
+  };
+
+  const rejectRequest = async (request) => {
+    try {
+      await rejectMasterPlanChangeRequest(request.id);
+      await load();
+    } catch (e) {
+      alert("Erro ao rejeitar migração: " + (e.response?.data?.error?.message || e.message));
+    }
+  };
+
   if (loading) return <Spinner />;
   if (error) return <ErrMsg msg={error} onRetry={load} />;
 
@@ -1089,6 +1121,27 @@ function PlanosSection() {
         <Btn icon={RefreshCw} variant="ghost" small onClick={load}>Atualizar</Btn>
         <Btn icon={Plus} onClick={openNew}>Novo Plano</Btn>
       </div>
+
+      {requests.length > 0 && (
+        <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, padding: 16 }}>
+          <div style={{ color: P.text, fontWeight: 700, marginBottom: 10 }}>Solicitações de migração pendentes</div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {requests.map(req => (
+              <div key={req.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, borderRadius: 10, background: P.surface, border: `1px solid ${P.border}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: P.text, fontWeight: 600, fontSize: 14 }}>{req.barbershop?.name || "Barbearia"} · {req.barbershop?.users?.[0]?.email || "—"}</div>
+                  <div style={{ color: P.muted, fontSize: 12 }}>
+                    {req.currentPlan?.name || "Sem plano"} → {req.targetPlan?.name || "Plano solicitado"}
+                    {req.note ? ` · ${req.note}` : ""}
+                  </div>
+                </div>
+                <Btn small onClick={() => approveRequest(req)}>Aprovar</Btn>
+                <Btn small variant="ghost" onClick={() => rejectRequest(req)}>Rejeitar</Btn>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 20 }}>
         {plans.map(plan => (

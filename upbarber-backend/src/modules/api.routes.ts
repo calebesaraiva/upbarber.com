@@ -256,6 +256,34 @@ router.get("/saas/invoices/current", async (req, res) => {
   if (!invoice) return ok(res, null);
   return ok(res, { ...invoice, pix: await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`) });
 });
+router.get("/saas/plan-change-requests", async (req, res) => {
+  const requests = await prisma.saasPlanChangeRequest.findMany({
+    where: { barbershopId: tenantId(req) },
+    include: { currentPlan: true, targetPlan: true },
+    orderBy: { createdAt: "desc" }
+  });
+  return ok(res, requests);
+});
+router.post("/saas/plan-change-requests", validate({ body: z.object({ targetPlanId: z.string(), note: z.string().optional().nullable() }) }), async (req, res) => {
+  const shop = await prisma.barbershop.findUniqueOrThrow({ where: { id: tenantId(req) }, select: { saasPlanId: true, saasPlansId: true } });
+  const currentPlanId = shop.saasPlanId ?? shop.saasPlansId ?? null;
+  const targetPlan = await prisma.saasPlan.findFirstOrThrow({ where: { id: req.body.targetPlanId, isActive: true } });
+  if (currentPlanId && currentPlanId === targetPlan.id) {
+    throw new AppError(409, "PLAN_ALREADY_ACTIVE", "Este já é o plano ativo da sua conta");
+  }
+  const pending = await prisma.saasPlanChangeRequest.findFirst({ where: { barbershopId: tenantId(req), status: "pending" } });
+  if (pending) throw new AppError(409, "PLAN_CHANGE_PENDING", "Já existe uma solicitação de migração em análise");
+  const request = await prisma.saasPlanChangeRequest.create({
+    data: {
+      barbershopId: tenantId(req),
+      currentPlanId,
+      targetPlanId: targetPlan.id,
+      note: req.body.note ?? null
+    },
+    include: { currentPlan: true, targetPlan: true }
+  });
+  return created(res, request);
+});
 router.post("/saas/plans", authorize("saas_admin"), validate({ body: z.object({ name: z.string(), price: z.coerce.number(), maxBarbers: z.number().nullable().optional(), maxClients: z.number().nullable().optional(), features: z.any().default({}), isActive: z.boolean().optional() }) }), async (req, res) => created(res, await prisma.saasPlan.create({ data: req.body })));
 router.put("/saas/plans/:id", authorize("saas_admin"), validate({ params: idParams, body: z.object({ name: z.string().optional(), price: z.coerce.number().optional(), maxBarbers: z.number().nullable().optional(), maxClients: z.number().nullable().optional(), features: z.any().optional(), isActive: z.boolean().optional() }) }), async (req, res) => ok(res, await prisma.saasPlan.update({ where: { id: req.params.id }, data: req.body })));
 router.delete("/saas/plans/:id", authorize("saas_admin"), validate({ params: idParams }), async (req, res) => { await prisma.saasPlan.update({ where: { id: req.params.id }, data: { isActive: false } }); return noContent(res); });

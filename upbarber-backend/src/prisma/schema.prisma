@@ -175,6 +175,8 @@ model SaasPlan {
   barbershops             Barbershop[]
   barbershopSubscriptions Barbershop[]      @relation("BarbershopPlan")
   featureFlags            PlanFeatureFlag[]
+  currentPlanRequests     SaasPlanChangeRequest[] @relation("SaasPlanChangeRequestCurrent")
+  targetPlanRequests      SaasPlanChangeRequest[] @relation("SaasPlanChangeRequestTarget")
 }
 
 model Barbershop {
@@ -230,6 +232,7 @@ model Barbershop {
   clubBenefits          ClubBenefit[]
   promotions            Promotion[]
   subscriptionPipeline  SubscriptionPipeline[]
+  saasPlanChangeRequests SaasPlanChangeRequest[]
   commissionReports     CommissionReport[]
   invoices              SaasInvoice[]
   tickets               SupportTicket[]
@@ -837,6 +840,25 @@ model SaasInvoice {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   barbershop    Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+}
+
+model SaasPlanChangeRequest {
+  id               String     @id @default(cuid())
+  barbershopId     String
+  barbershop       Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  currentPlanId    String?
+  currentPlan      SaasPlan?  @relation("SaasPlanChangeRequestCurrent", fields: [currentPlanId], references: [id])
+  targetPlanId     String
+  targetPlan       SaasPlan   @relation("SaasPlanChangeRequestTarget", fields: [targetPlanId], references: [id])
+  status           String     @default("pending")
+  note             String?
+  reviewedByMasterId String?
+  reviewedAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([barbershopId, status])
+  @@index([targetPlanId])
 }
 
 model AuthCode {
