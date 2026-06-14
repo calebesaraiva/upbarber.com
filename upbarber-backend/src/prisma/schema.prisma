@@ -480,6 +480,8 @@ model Product {
   id             String          @id @default(cuid())
   barbershopId   String
   barbershop     Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId       String?
+  branch         Branch?         @relation(fields: [branchId], references: [id])
   name           String
   description    String?
   category       ProductCategory @default(Outro)
@@ -501,6 +503,8 @@ model StockMovement {
   product      Product           @relation(fields: [productId], references: [id])
   barbershopId String
   barbershop   Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId     String?
+  branch       Branch?           @relation(fields: [branchId], references: [id])
   type         StockMovementType
   quantity     Int
   reason       StockReason
@@ -653,8 +657,11 @@ model Branch {
   appointments          Appointment[]
   orders                Order[]
   financialTransactions FinancialTransaction[]
+  products              Product[]
+  stockMovements        StockMovement[]
   cashRegisters         CashRegister[]
   auditLogs             AuditLog[]
+  commissionReports      CommissionReport[]
 }
 
 model CashRegister {
@@ -769,6 +776,8 @@ model CommissionReport {
   id                String     @id @default(uuid())
   barbershopId      String
   barbershop        Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId          String?
+  branch            Branch?    @relation(fields: [branchId], references: [id])
   barberId          String
   barber            Barber     @relation(fields: [barberId], references: [id])
   period            String

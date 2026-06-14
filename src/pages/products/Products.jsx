@@ -4,12 +4,14 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Modal } from '../../components/ui/Modal';
 import { useApp } from '../../context/AppContext';
+import { useBranch } from '../../context/BranchContext';
 import { productsService } from '../../services/products.service';
 
 const CATS = ['Todos','Cabelo','Barba','Ferramentas','Bebidas','Alimentacao','Outro'];
 
 export default function Products() {
   const { addToast } = useApp();
+  const { ready, currentBranch } = useBranch();
   const [prods, setProds] = useState([]);
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('Todos');
@@ -18,7 +20,10 @@ export default function Products() {
   const [form, setForm] = useState({ name:'', category:'Cabelo', salePrice:'', costPrice:'', stock:'', minStock:'', code:'' });
   const upd = k => e => setForm({...form,[k]:e.target.value});
   const load = () => productsService.list().then(res => setProds(res.data.data?.data || res.data.data || []));
-  useEffect(load, []);
+  useEffect(() => {
+    if (!ready) return;
+    load();
+  }, [ready, currentBranch?.id]);
 
   const emptyForm = { name:'', category:'Cabelo', salePrice:'', costPrice:'', stock:'', minStock:'', code:'' };
   const openNew = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
@@ -77,6 +82,9 @@ export default function Products() {
         subtitle={`${prods.length} produtos cadastrados`}
         actions={<button className="btn-primary" onClick={openNew}><Plus size={15}/> Novo Produto</button>}
       />
+      <div className="mb-4 text-xs text-gray-500">
+        Filial ativa: <span className="text-gold font-medium">{currentBranch?.name || 'Todas'}</span>
+      </div>
 
       {lowStock.length > 0 && (
         <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl mb-5">

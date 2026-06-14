@@ -1,20 +1,34 @@
 import { useEffect, useState } from 'react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { financialService } from '../../services/financial.service';
+import { useBranch } from '../../context/BranchContext';
 
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const STATUS_LABELS = { open: 'Aberto', closed: 'Fechado' };
 
 export default function HistoricoCaixas() {
+  const { branches, currentBranch, ready } = useBranch();
   const [items, setItems] = useState([]);
+  const [branchView, setBranchView] = useState('current');
+  const activeBranchId = branchView === 'all' ? 'all' : branchView === 'current' ? (currentBranch?.id || 'all') : branchView;
 
   useEffect(() => {
-    financialService.getRegisterHistory({ limit: 100 }).then(r => setItems(r.data.data?.data || []));
-  }, []);
+    if (!ready) return;
+    financialService.getRegisterHistory({ limit: 100, ...(activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId }) }).then(r => setItems(r.data.data?.data || []));
+  }, [ready, activeBranchId]);
 
   return (
     <div className="space-y-5">
       <PageHeader title="Histórico de Caixas" subtitle="Registro de todos os caixas abertos e fechados" />
+      <div className="flex flex-wrap gap-2">
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView('all')}>Todas as filiais</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(currentBranch?.id || 'all')}>Filial atual</button>
+        {branches.map(branch => (
+          <button key={branch.id} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(branch.id)}>
+            {branch.name}
+          </button>
+        ))}
+      </div>
       <div className="card p-0 overflow-hidden">
         {items.length === 0 ? (
           <p className="text-center py-10 text-gray-500 text-sm">Nenhum registro encontrado.</p>

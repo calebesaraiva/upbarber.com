@@ -4,12 +4,14 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { productsService } from '../../services/products.service';
 import { clientsService } from '../../services/clients.service';
 import { useApp } from '../../context/AppContext';
+import { useBranch } from '../../context/BranchContext';
 
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const PM_LABELS = { pix: 'Pix', cash: 'Dinheiro', credit: 'Cartão de Crédito', debit: 'Cartão de Débito' };
 
 export default function Comandas() {
   const { addToast } = useApp();
+  const { ready, currentBranch } = useBranch();
   const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
   const [clientId, setClientId] = useState('');
@@ -19,13 +21,14 @@ export default function Comandas() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    if (!ready) return;
     Promise.all([productsService.list(), clientsService.list()])
       .then(([p, c]) => {
         setProducts(p.data.data?.data || p.data.data || []);
         setClients(c.data.data?.data || c.data.data || []);
       })
       .catch(() => addToast('Erro ao carregar dados', 'error'));
-  }, []);
+  }, [addToast, ready, currentBranch?.id]);
 
   const add = p => setItems(old => {
     const found = old.find(x => x.productId === p.id);
@@ -53,6 +56,7 @@ export default function Comandas() {
     try {
       const res = await productsService.createOrder({
         clientId: clientId || null,
+        branchId: currentBranch?.id || undefined,
         items: items.map(({ productId, quantity }) => ({ productId, quantity })),
       });
       // Suporta ambas as estruturas de resposta { data: obj } ou { data: { data: obj } }

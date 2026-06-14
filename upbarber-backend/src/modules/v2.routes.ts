@@ -107,8 +107,23 @@ function branchesRouter() {
   });
 
   r.put("/:id", validate({ params: idParams, body: schema.partial().extend({ isMain: z.boolean().optional() }) }), async (req, res) => {
-    const branch = await prisma.branch.update({ where: { id: req.params.id }, data: req.body });
+    const { isMain, ...data } = req.body as any;
+    const branch = await prisma.$transaction(async (tx) => {
+      if (isMain) {
+        await tx.branch.updateMany({ where: { barbershopId: tenantId(req), NOT: { id: req.params.id } }, data: { isMain: false } });
+      }
+      return tx.branch.update({ where: { id: req.params.id }, data: { ...data, ...(typeof isMain === "boolean" ? { isMain } : {}) } });
+    });
     await auditLog(req, { module: "Filiais", action: `Editou filial ${branch.name}`, entityType: "branch", entityId: branch.id });
+    return ok(res, branch);
+  });
+
+  r.patch("/:id/main", validate({ params: idParams }), async (req, res) => {
+    const branch = await prisma.$transaction(async (tx) => {
+      await tx.branch.updateMany({ where: { barbershopId: tenantId(req) }, data: { isMain: false } });
+      return tx.branch.update({ where: { id: req.params.id }, data: { isMain: true } });
+    });
+    await auditLog(req, { module: "Filiais", action: `Definiu ${branch.name} como matriz`, entityType: "branch", entityId: branch.id });
     return ok(res, branch);
   });
 
@@ -304,14 +319,15 @@ function subscriptionPipelineRouter() {
 function commissionsRouter() {
   const r = Router();
   r.post("/generate", validate({ body: z.object({ period: z.string().regex(/^\d{4}-\d{2}$/), branchId: z.string().optional().nullable() }) }), async (req, res) => {
-    const whereBranch = req.body.branchId && req.body.branchId !== "all" ? { branchId: req.body.branchId } : {};
+    const branchId = req.body.branchId && req.body.branchId !== "all" ? req.body.branchId : null;
+    const whereBranch = branchId ? { branchId } : {};
     const barbers = await prisma.barber.findMany({ where: { barbershopId: tenantId(req), ...whereBranch } });
     const rows = [];
     for (const barber of barbers) {
       const appointments = await prisma.appointment.findMany({ where: { barbershopId: tenantId(req), barberId: barber.id, status: "completed", ...whereBranch }, include: { service: true } });
       const serviceRevenue = appointments.reduce((s, a) => s + Number(a.price), 0);
       const serviceCommission = appointments.reduce((s, a) => s + Number(a.price) * Number(a.service.commissionPercent) / 100, 0);
-      const report = await prisma.commissionReport.create({ data: { barbershopId: tenantId(req), barberId: barber.id, period: req.body.period, serviceCount: appointments.length, serviceRevenue, serviceCommission, totalCommission: serviceCommission } });
+      const report = await prisma.commissionReport.create({ data: { barbershopId: tenantId(req), branchId: branchId ?? undefined, barberId: barber.id, period: req.body.period, serviceCount: appointments.length, serviceRevenue, serviceCommission, totalCommission: serviceCommission } });
       rows.push({ barberId: barber.id, name: barber.name, commissionPercent: Number(barber.commissionPercent), services: { count: appointments.length, revenue: serviceRevenue, commission: serviceCommission }, products: { count: 0, revenue: 0, commission: 0 }, total: serviceCommission, reportId: report.id });
     }
     return ok(res, { period: req.body.period, barbers: rows });
@@ -320,13 +336,14 @@ function commissionsRouter() {
     const { page, limit, skip } = pagination(req.query);
     const where: any = { barbershopId: tenantId(req) };
     for (const key of ["period", "barberId"]) if (req.query[key]) where[key] = req.query[key];
+    if (req.query.branchId && req.query.branchId !== "all") where.branchId = req.query.branchId;
     if (req.query.isPaid !== undefined) where.isPaid = req.query.isPaid === "true";
-    return paginated(res, await prisma.commissionReport.findMany({ where, skip, take: limit, include: { barber: true } }), await prisma.commissionReport.count({ where }), page, limit);
+    return paginated(res, await prisma.commissionReport.findMany({ where, skip, take: limit, include: { barber: true, branch: true } }), await prisma.commissionReport.count({ where }), page, limit);
   });
   r.patch("/reports/:id/pay", validate({ params: idParams, body: z.object({ paidAt: z.string().optional() }) }), async (req, res) => ok(res, await prisma.commissionReport.update({ where: { id: req.params.id }, data: { isPaid: true, paidAt: req.body.paidAt ? new Date(req.body.paidAt) : new Date() } })));
-  r.get("/reports/:id", validate({ params: idParams }), async (req, res) => ok(res, await prisma.commissionReport.findFirst({ where: { id: req.params.id, barbershopId: tenantId(req) }, include: { barber: true } })));
+  r.get("/reports/:id", validate({ params: idParams }), async (req, res) => ok(res, await prisma.commissionReport.findFirst({ where: { id: req.params.id, barbershopId: tenantId(req) }, include: { barber: true, branch: true } })));
   r.get("/reports/:id/pdf", validate({ params: idParams }), async (req, res) => {
-    const report = await prisma.commissionReport.findFirstOrThrow({ where: { id: req.params.id, barbershopId: tenantId(req) }, include: { barber: true } });
+    const report = await prisma.commissionReport.findFirstOrThrow({ where: { id: req.params.id, barbershopId: tenantId(req) }, include: { barber: true, branch: true } });
     const PDFDocument = (await import("pdfkit")).default;
     const doc = new PDFDocument({ margin: 40, size: "A4" });
     res.setHeader("Content-Type", "application/pdf");
@@ -335,6 +352,7 @@ function commissionsRouter() {
     doc.fontSize(18).font("Helvetica-Bold").text("UpBarber — Relatório de Comissão", { align: "center" });
     doc.moveDown(0.5);
     doc.fontSize(12).font("Helvetica").text(`Barbeiro: ${report.barber.name}`);
+    doc.text(`Filial: ${report.branch?.name ?? "Todas as filiais"}`);
     doc.text(`Período: ${report.period}`);
     doc.text(`Status: ${report.isPaid ? "Pago" : "Pendente"}${report.paidAt ? " em " + report.paidAt.toLocaleDateString("pt-BR") : ""}`);
     doc.moveDown();

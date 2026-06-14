@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, ChevronLeft, ChevronRight, Check, Edit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -7,33 +7,45 @@ import { appointmentsService } from '../../services/appointments.service';
 import { barbersService } from '../../services/barbers.service';
 import { useApp } from '../../context/AppContext';
 import { localDateInputValue } from '../../utils/date';
+import { useBranch } from '../../context/BranchContext';
 
 export default function Agenda() {
   const navigate = useNavigate();
   const { addToast } = useApp();
+  const { branches, currentBranch, ready } = useBranch();
   const [date, setDate] = useState(localDateInputValue());
   const [items, setItems] = useState([]);
   const [barbers, setBarbers] = useState([]);
   const [barberId, setBarberId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [branchId, setBranchId] = useState('all');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [a, b] = await Promise.all([
-        appointmentsService.list({ date, barberId: barberId || undefined, limit: 100 }),
-        barbersService.list(),
+        appointmentsService.list({ date, barberId: barberId || undefined, branchId: branchId || undefined, limit: 100 }),
+        barbersService.list({ branchId: branchId || undefined }),
       ]);
-      setItems(a.data.data?.data || []);
+      const allItems = a.data.data?.data || [];
+      const filtered = branchId === 'all'
+        ? allItems
+        : allItems.filter(item => item.branchId === branchId || !item.branchId);
+      setItems(filtered);
       setBarbers(b.data.data?.data || b.data.data || []);
     } catch {
       addToast('Erro ao carregar agenda', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [addToast, date, barberId, branchId]);
 
-  useEffect(() => { load(); }, [date, barberId]);
+  useEffect(() => {
+    if (!ready) return;
+    queueMicrotask(() => {
+      load();
+    });
+  }, [load, ready]);
 
   const move = days => {
     const d = new Date(`${date}T12:00:00`);
@@ -62,6 +74,11 @@ export default function Agenda() {
         <button className="btn-secondary" onClick={() => move(-1)}><ChevronLeft size={15} /></button>
         <input className="input w-auto" type="date" value={date} onChange={e => setDate(e.target.value)} />
         <button className="btn-secondary" onClick={() => move(1)}><ChevronRight size={15} /></button>
+        <select className="input w-auto" value={branchId} onChange={e => setBranchId(e.target.value)}>
+          <option value="all">Todas as filiais</option>
+          {currentBranch?.id && <option value={currentBranch.id}>Filial atual</option>}
+          {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}{branch.isMain ? ' · Matriz' : ''}</option>)}
+        </select>
         <select className="input w-auto" value={barberId} onChange={e => setBarberId(e.target.value)}>
           <option value="">Todos os barbeiros</option>
           {barbers.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}

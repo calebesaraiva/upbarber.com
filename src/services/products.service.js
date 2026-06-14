@@ -17,4 +17,5 @@ export const productsService = {
   cancelOrder: (id) => api.patch(`/orders/${id}/cancel`),
   addOrderItem: (id, data) => api.post(`/orders/${id}/items`, data),
   removeOrderItem: (orderId, itemId) => api.delete(`/orders/${orderId}/items/${itemId}`),
+  transferStock: (data) => api.post('/stock/transfer', data),
 };

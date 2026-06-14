@@ -46,6 +46,7 @@ import Comandas from './pages/products/Comandas';
 
 // Reports
 import Reports from './pages/reports/Reports';
+import Filiais from './pages/filiais/Filiais';
 
 // WhatsApp
 import WhatsApp from './pages/whatsapp/WhatsApp';
@@ -60,6 +61,7 @@ import SubscriptionPayments from './pages/subscriptions/SubscriptionPayments';
 import MasterRoute from './pages/master/MasterRoute';
 import LegalPage from './pages/legal/LegalPage';
 import { CookieConsent } from './components/legal/CookieConsent';
+import { SessionManager } from './components/session/SessionManager';
 import { useAuth } from './context/AuthContext';
 import { canAccessPath, homeForRole } from './utils/access';
 
@@ -82,6 +84,7 @@ export default function App() {
         <BranchProvider>
           <ModulesProvider>
           <AppProvider>
+            <SessionManager />
             <Routes>
               <Route path="/master/*" element={<MasterRoute />} />
               <Route path="/termos" element={<LegalPage />} />
@@ -129,6 +132,7 @@ export default function App() {
           <Route path="/campanhas" element={<AppLayout><Campanhas /></AppLayout>} />
 
           <Route path="/configuracoes" element={<AppLayout><Configuracoes /></AppLayout>} />
+          <Route path="/filiais" element={<AppLayout><Filiais /></AppLayout>} />
           <Route path="/notificacoes" element={<AppLayout><Notifications /></AppLayout>} />
           <Route path="/suporte" element={<AppLayout><Support /></AppLayout>} />
           <Route path="/saas-planos" element={<AppLayout><SaasPlanos /></AppLayout>} />

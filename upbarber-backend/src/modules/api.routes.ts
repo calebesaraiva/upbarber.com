@@ -172,6 +172,7 @@ router.put("/barbers/:id", validate({ params: idParams, body: barberCreateSchema
     where: { id: req.params.id },
     data: {
       ...data,
+      branchId: selectedBranchId(req) ?? data.branchId,
       ...(serviceIds ? { services: { deleteMany: {}, create: serviceIds.map((serviceId: string) => ({ serviceId })) } } : {})
     },
     include: { services: { include: { service: true } } }
@@ -186,7 +187,7 @@ router.get("/barbers/:id/schedule", validate({ params: idParams, query: z.object
 });
 
 router.get("/barbers/:id/performance", validate({ params: idParams }), async (req, res) => {
-  const appointments = await prisma.appointment.findMany({ where: { barbershopId: tenantId(req), barberId: req.params.id, status: "completed" }, include: { service: true } });
+  const appointments = await prisma.appointment.findMany({ where: { barbershopId: tenantId(req), barberId: req.params.id, status: "completed", ...withBranch(req) }, include: { service: true } });
   const revenue = appointments.reduce((sum, item) => sum + Number(item.price), 0);
   const commissions = appointments.reduce((sum, item) => sum + (Number(item.price) * Number(item.service.commissionPercent)) / 100, 0);
   return ok(res, { totalCuts: appointments.length, revenue, commissions });
@@ -220,10 +221,26 @@ router.use("/subscription-payments", buildSubscriptionPaymentsRouter());
 
 router.get("/products/categories", async (_req, res) => ok(res, ["Cabelo", "Barba", "Ferramentas", "Bebidas", "Alimentacao", "Outro"]));
 router.get("/products/low-stock", async (req, res) => {
-  const products = await prisma.product.findMany({ where: { barbershopId: tenantId(req) } });
+  const products = await prisma.product.findMany({ where: { barbershopId: tenantId(req), ...withBranch(req) } });
   return ok(res, products.filter((product) => product.stock <= product.minStock));
 });
-router.use("/products", crudRouter({ prisma, model: "product", createSchema: productSchema, searchFields: ["name", "description", "internalCode"], softDelete: true }));
+router.use("/products", crudRouter({
+  prisma,
+  model: "product",
+  createSchema: productSchema,
+  searchFields: ["name", "description", "internalCode"],
+  softDelete: true,
+  listWhere: (req) => withBranch(req),
+  itemWhere: (req) => withBranch(req),
+  beforeCreate: (data, req) => ({
+    ...data,
+    branchId: data.branchId ?? selectedBranchId(req) ?? undefined
+  }),
+  beforeUpdate: (data, req) => ({
+    ...data,
+    branchId: data.branchId ?? selectedBranchId(req) ?? undefined
+  })
+}));
 router.use("/stock", buildStockRouter());
 router.use("/orders", buildOrdersRouter());
 router.use("/financial", buildFinancialRouter());
@@ -286,7 +303,7 @@ function buildAppointmentsRouter() {
     for (const key of ["barberId", "clientId", "status", "paymentMethod"]) if (req.query[key]) where[key] = req.query[key];
     if (req.query.date) where.date = sameDateOnly(String(req.query.date));
     const [data, total] = await Promise.all([
-      prisma.appointment.findMany({ where, skip, take: limit, orderBy: [{ date: "desc" }, { startTime: "asc" }], include: { client: true, barber: true, service: true } }),
+      prisma.appointment.findMany({ where, skip, take: limit, orderBy: [{ date: "desc" }, { startTime: "asc" }], include: { client: true, barber: true, service: true, branch: true } }),
       prisma.appointment.count({ where })
     ]);
     return paginated(res, data, total, page, limit);
@@ -295,7 +312,7 @@ function buildAppointmentsRouter() {
   r.get("/today", async (req, res) => ok(res, await prisma.appointment.findMany({ where: { barbershopId: tenantId(req), ...withBranch(req), date: sameDateOnly(new Date()) }, include: { client: true, barber: true, service: true, branch: true } })));
   r.get("/summary", async (req, res) => {
     const date = req.query.date ? sameDateOnly(String(req.query.date)) : sameDateOnly(new Date());
-    const items = await prisma.appointment.findMany({ where: { barbershopId: tenantId(req), ...withBranch(req), date } });
+    const items = await prisma.appointment.findMany({ where: { barbershopId: tenantId(req), ...withBranch(req), date }, include: { branch: true } });
     return ok(res, { total: items.length, revenueEstimated: items.reduce((s, a) => s + Number(a.price), 0), byStatus: countBy(items, "status") });
   });
   r.get("/availability", validate({ query: z.object({ barberId: z.string(), date: z.string(), serviceId: z.string(), branchId: z.string().optional() }) }), async (req, res) => {
@@ -525,7 +542,7 @@ function buildStockRouter() {
   const r = Router();
   r.get("/movements", validate({ query: pagingQuery }), async (req, res) => {
     const { page, limit, skip } = pagination(req.query);
-    const where: any = { barbershopId: tenantId(req), ...parseDateRange(req.query, "createdAt") };
+    const where: any = { barbershopId: tenantId(req), ...withBranch(req), ...parseDateRange(req.query, "createdAt") };
     for (const key of ["productId", "type"]) if (req.query[key]) where[key] = req.query[key];
     const [data, total] = await Promise.all([prisma.stockMovement.findMany({ where, skip, take: limit, include: { product: true, user: true } }), prisma.stockMovement.count({ where })]);
     return paginated(res, data, total, page, limit);
@@ -533,23 +550,105 @@ function buildStockRouter() {
   r.post("/movements", validate({ body: z.object({ productId: z.string(), type: z.enum(["in", "out", "adjustment"]), quantity: z.coerce.number().int(), reason: z.enum(["purchase", "sale", "adjustment", "loss", "return"]), notes: z.string().optional() }) }), async (req, res) => created(res, await moveStock(req, req.body)));
   r.post("/adjustment", validate({ body: z.object({ items: z.array(z.object({ productId: z.string(), newQuantity: z.coerce.number().int(), reason: z.string().default("adjustment") })) }) }), async (req, res) => {
     const data = [];
-    for (const item of req.body.items) {
-      const product = await prisma.product.findFirstOrThrow({ where: { id: item.productId, barbershopId: tenantId(req) } });
+  for (const item of req.body.items) {
+      const product = await prisma.product.findFirstOrThrow({ where: { id: item.productId, barbershopId: tenantId(req), ...withBranch(req) } });
       data.push(await moveStock(req, { productId: item.productId, type: "adjustment", quantity: item.newQuantity - product.stock, reason: "adjustment", notes: item.reason }));
     }
     return ok(res, data);
   });
+  r.post("/transfer", validate({ body: z.object({ productId: z.string(), targetBranchId: z.string(), quantity: z.coerce.number().int().positive() }) }), async (req, res) => created(res, await transferStock(req, req.body)));
   return r;
 }
 
 async function moveStock(req: Express.Request, input: any) {
   return prisma.$transaction(async (tx) => {
-    const product = await tx.product.findFirstOrThrow({ where: { id: input.productId, barbershopId: tenantId(req) } });
+    const product = await tx.product.findFirstOrThrow({ where: { id: input.productId, barbershopId: tenantId(req), ...withBranch(req) } });
     const delta = input.type === "in" ? input.quantity : input.type === "out" ? -input.quantity : input.quantity;
     const updated = await tx.product.update({ where: { id: product.id }, data: { stock: { increment: delta }, isActive: product.stock + delta > 0 } });
-    const movement = await tx.stockMovement.create({ data: { ...input, barbershopId: tenantId(req), userId: req.user!.userId } });
+    const movement = await tx.stockMovement.create({ data: { ...input, barbershopId: tenantId(req), branchId: product.branchId ?? selectedBranchId(req) ?? undefined, userId: req.user!.userId } });
     if (updated.stock <= updated.minStock) await tx.notification.create({ data: { barbershopId: tenantId(req), type: updated.stock <= 0 ? "alert" : "warning", title: "Alerta de estoque", message: `${updated.name} está com estoque ${updated.stock}`, relatedEntity: "product", relatedId: updated.id } });
     return movement;
+  });
+}
+
+async function transferStock(req: Express.Request, input: { productId: string; targetBranchId: string; quantity: number; }) {
+  if (input.quantity <= 0) throw new AppError(422, "INVALID_QUANTITY", "Quantidade inválida");
+  const shopId = tenantId(req);
+  return prisma.$transaction(async (tx) => {
+    const source = await tx.product.findFirstOrThrow({ where: { id: input.productId, barbershopId: shopId, ...withBranch(req) }, include: { branch: true } });
+    if (!source.branchId) throw new AppError(422, "SOURCE_BRANCH_REQUIRED", "O produto de origem precisa estar vinculado a uma filial");
+    if (source.branchId === input.targetBranchId) throw new AppError(422, "TRANSFER_SAME_BRANCH", "A filial de destino precisa ser diferente da origem");
+
+    const targetBranch = await tx.branch.findFirstOrThrow({ where: { id: input.targetBranchId, barbershopId: shopId, isActive: true } });
+    if (source.stock < input.quantity) throw new AppError(422, "INSUFFICIENT_STOCK", "Estoque insuficiente para transferir");
+
+    const baseProductData = {
+      name: source.name,
+      description: source.description,
+      category: source.category,
+      salePrice: source.salePrice,
+      costPrice: source.costPrice,
+      minStock: source.minStock,
+      internalCode: source.internalCode,
+      isActive: source.isActive,
+    };
+
+    const targetProduct = await tx.product.findFirst({
+      where: {
+        barbershopId: shopId,
+        branchId: targetBranch.id,
+        ...(source.internalCode
+          ? { internalCode: source.internalCode }
+          : { name: source.name, category: source.category })
+      }
+    }) ?? await tx.product.create({
+      data: {
+        ...baseProductData,
+        stock: 0,
+        barbershopId: shopId,
+        branchId: targetBranch.id
+      }
+    });
+
+    const sourceUpdated = await tx.product.update({
+      where: { id: source.id },
+      data: { stock: { decrement: input.quantity }, isActive: source.stock - input.quantity > 0 }
+    });
+
+    const destinationUpdated = await tx.product.update({
+      where: { id: targetProduct.id },
+      data: { stock: { increment: input.quantity }, isActive: true }
+    });
+
+    const note = `Transferência para ${targetBranch.name}`;
+    const outMovement = await tx.stockMovement.create({
+      data: {
+        productId: source.id,
+        barbershopId: shopId,
+        branchId: source.branchId,
+        type: "out",
+        quantity: input.quantity,
+        reason: "adjustment",
+        notes: note,
+        userId: req.user!.userId
+      }
+    });
+    const inMovement = await tx.stockMovement.create({
+      data: {
+        productId: targetProduct.id,
+        barbershopId: shopId,
+        branchId: targetBranch.id,
+        type: "in",
+        quantity: input.quantity,
+        reason: "adjustment",
+        notes: `Transferência recebida de ${source.branch?.name ?? "outra filial"}`,
+        userId: req.user!.userId
+      }
+    });
+
+    await auditLog(req, { module: "Estoque", action: `Transferiu ${input.quantity}x ${source.name} para ${targetBranch.name}`, entityType: "stockTransfer", entityId: outMovement.id, metadata: { sourceProductId: source.id, targetProductId: targetProduct.id, sourceBranchId: source.branchId, targetBranchId: targetBranch.id } });
+
+    return { source: sourceUpdated, target: destinationUpdated, movements: [outMovement, inMovement] };
   });
 }
 
@@ -568,7 +667,8 @@ function buildOrdersRouter() {
   r.patch("/:id/close", validate({ params: idParams, body: z.object({ paymentMethod: z.enum(["pix", "cash", "credit", "debit"]) }) }), async (req, res) => ok(res, await closeOrder(req, req.params.id, req.body.paymentMethod)));
   r.patch("/:id/cancel", validate({ params: idParams }), async (req, res) => ok(res, await prisma.order.update({ where: { id: req.params.id }, data: { status: "cancelled" } })));
   r.post("/:id/items", validate({ params: idParams, body: z.object({ productId: z.string(), quantity: z.coerce.number().int().positive() }) }), async (req, res) => {
-    const product = await prisma.product.findFirstOrThrow({ where: { id: req.body.productId, barbershopId: tenantId(req) } });
+    const order = await prisma.order.findFirstOrThrow({ where: { id: req.params.id, barbershopId: tenantId(req) } });
+    const product = await prisma.product.findFirstOrThrow({ where: { id: req.body.productId, barbershopId: tenantId(req), ...(order.branchId ? { branchId: order.branchId } : {}) } });
     const item = await prisma.orderItem.create({ data: { orderId: req.params.id, productId: product.id, quantity: req.body.quantity, unitPrice: product.salePrice, total: Number(product.salePrice) * req.body.quantity } });
     await prisma.order.update({ where: { id: req.params.id }, data: { total: { increment: item.total } } });
     return created(res, item);
@@ -582,14 +682,15 @@ function buildOrdersRouter() {
 }
 
 async function createOrder(req: Express.Request, input: any) {
-  const products = await prisma.product.findMany({ where: { id: { in: input.items.map((i: any) => i.productId) }, barbershopId: tenantId(req) } });
+  const branchId = input.branchId ?? selectedBranchId(req) ?? undefined;
+  const products = await prisma.product.findMany({ where: { id: { in: input.items.map((i: any) => i.productId) }, barbershopId: tenantId(req), ...(branchId ? { branchId } : {}) } });
   const items = input.items.map((item: any) => {
     const product = products.find((p) => p.id === item.productId);
     if (!product) throw new AppError(404, "PRODUCT_NOT_FOUND", "Produto não encontrado");
     return { productId: product.id, quantity: item.quantity, unitPrice: product.salePrice, total: Number(product.salePrice) * item.quantity };
   });
   const total = items.reduce((s: number, item: any) => s + item.total, 0);
-  const order = await prisma.order.create({ data: { barbershopId: tenantId(req), branchId: input.branchId ?? selectedBranchId(req), clientId: input.clientId, barberId: input.barberId, notes: input.notes, total, items: { create: items } }, include: { items: true } });
+  const order = await prisma.order.create({ data: { barbershopId: tenantId(req), branchId, clientId: input.clientId, barberId: input.barberId, notes: input.notes, total, items: { create: items } }, include: { items: true } });
   await auditLog(req, { module: "Comandas", action: `Criou comanda ${order.id}`, entityType: "order", entityId: order.id });
   return order;
 }
@@ -598,10 +699,11 @@ async function closeOrder(req: Express.Request, id: string, paymentMethod: any) 
   const order = await prisma.order.findFirstOrThrow({ where: { id, barbershopId: tenantId(req) }, include: { items: true } });
   return prisma.$transaction(async (tx) => {
     for (const item of order.items) {
-      await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity }, soldCount: { increment: item.quantity } } });
-      await tx.stockMovement.create({ data: { productId: item.productId, barbershopId: tenantId(req), type: "out", quantity: item.quantity, reason: "sale", referenceId: order.id, userId: req.user!.userId } });
+      const product = await tx.product.findFirstOrThrow({ where: { id: item.productId, barbershopId: tenantId(req), ...(order.branchId ? { branchId: order.branchId } : {}) } });
+      await tx.product.update({ where: { id: product.id }, data: { stock: { decrement: item.quantity }, soldCount: { increment: item.quantity } } });
+      await tx.stockMovement.create({ data: { productId: product.id, branchId: order.branchId ?? selectedBranchId(req) ?? product.branchId ?? undefined, barbershopId: tenantId(req), type: "out", quantity: item.quantity, reason: "sale", referenceId: order.id, userId: req.user!.userId } });
     }
-    await tx.financialTransaction.create({ data: { barbershopId: tenantId(req), branchId: order.branchId, type: "income", category: "Produto", description: `Comanda ${order.id}`, amount: order.total, paymentMethod, orderId: order.id, date: new Date(), status: "completed" } });
+    await tx.financialTransaction.create({ data: { barbershopId: tenantId(req), branchId: order.branchId ?? selectedBranchId(req) ?? undefined, type: "income", category: "Produto", description: `Comanda ${order.id}`, amount: order.total, paymentMethod, orderId: order.id, date: new Date(), status: "completed" } });
     await auditLog(req, { module: "Comandas", action: `Fechou comanda ${order.id}`, entityType: "order", entityId: order.id });
     return tx.order.update({ where: { id }, data: { status: "closed", paymentMethod, closedAt: new Date() } });
   });
@@ -613,7 +715,7 @@ function buildFinancialRouter() {
     const { page, limit, skip } = pagination(req.query);
     const where: any = { barbershopId: tenantId(req), ...withBranch(req), ...parseDateRange(req.query, "date") };
     for (const key of ["type", "category", "paymentMethod", "barberId"]) if (req.query[key]) where[key] = req.query[key];
-    const [data, total] = await Promise.all([prisma.financialTransaction.findMany({ where, skip, take: limit, orderBy: { date: "desc" } }), prisma.financialTransaction.count({ where })]);
+    const [data, total] = await Promise.all([prisma.financialTransaction.findMany({ where, skip, take: limit, orderBy: { date: "desc" }, include: { branch: true } }), prisma.financialTransaction.count({ where })]);
     return paginated(res, data, total, page, limit);
   });
   r.post("/transactions", validate({ body: financialTransactionSchema }), async (req, res) => created(res, await prisma.financialTransaction.create({ data: { ...req.body, branchId: selectedBranchId(req), date: new Date(req.body.date), barbershopId: tenantId(req) } })));

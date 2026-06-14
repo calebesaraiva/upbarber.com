@@ -1,10 +1,9 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, CalendarDays, Users, Scissors, Star, CreditCard, BarChart3,
   MessageCircle, Settings, Package, ShoppingCart, FileText, Bell, HelpCircle,
-  LogOut, X, ChevronDown, ChevronRight, Zap, Crown
+  LogOut, X, Zap, Crown, Building2
 } from 'lucide-react';
-import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { useModules } from '../../context/ModulesContext';
@@ -14,11 +13,12 @@ import { COMPANY } from '../../constants/company';
 const navGroups = [
   {
     label: null,
-    items: [{ to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', module: null }]
+    items: [{ to: '/dashboard', icon: LayoutDashboard, label: 'Painel', module: null }]
   },
   {
     label: 'Atendimento',
     items: [
+      { to: '/filiais',    icon: Building2,   label: 'Filiais',    module: null },
       { to: '/agenda',    icon: CalendarDays, label: 'Agenda',    module: 'agenda' },
       { to: '/clientes',  icon: Users,        label: 'Clientes',  module: 'clientes' },
       { to: '/barbeiros', icon: Scissors,     label: 'Barbeiros', module: 'barbeiros' },
@@ -71,15 +71,8 @@ const navGroups = [
   }
 ];
 
-export function Sidebar() {
-  const { sidebarOpen, setSidebarOpen } = useApp();
-  const { logout, user, barbershop } = useAuth();
-  const { hasModule } = useModules();
-  const navigate = useNavigate();
-
-  const handleLogout = () => logout();
-
-  const SidebarContent = () => (
+function SidebarContent({ setSidebarOpen, user, barbershop, handleLogout, hasModule }) {
+  return (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-dark-400">
@@ -140,12 +133,19 @@ export function Sidebar() {
       </div>
     </div>
   );
+}
+
+export function Sidebar() {
+  const { sidebarOpen, setSidebarOpen } = useApp();
+  const { logout, user, barbershop } = useAuth();
+  const { hasModule } = useModules();
+  const handleLogout = () => logout();
 
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col w-60 bg-dark-100 border-r border-dark-400 fixed inset-y-0 left-0 z-30">
-        <SidebarContent />
+        <SidebarContent setSidebarOpen={setSidebarOpen} user={user} barbershop={barbershop} handleLogout={handleLogout} hasModule={hasModule} />
       </aside>
 
       {/* Mobile overlay */}
@@ -153,7 +153,7 @@ export function Sidebar() {
         <>
           <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
           <aside className="fixed inset-y-0 left-0 w-64 bg-dark-100 border-r border-dark-400 z-50 lg:hidden flex flex-col">
-            <SidebarContent />
+            <SidebarContent setSidebarOpen={setSidebarOpen} user={user} barbershop={barbershop} handleLogout={handleLogout} hasModule={hasModule} />
           </aside>
         </>
       )}

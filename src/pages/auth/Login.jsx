@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeCheck,
@@ -17,8 +17,9 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 import { COMPANY, COMPANY_LEGAL_LINE } from '../../constants/company';
+import { useAuth } from '../../context/AuthContext';
+import { homeForRole } from '../../utils/access';
 import api from '../../services/api';
 
 function money(value) {
@@ -177,7 +178,8 @@ function PlansModal({ plans, onClose }) {
 }
 
 export default function Login() {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -187,6 +189,16 @@ export default function Login() {
   const [masterChallenge, setMasterChallenge] = useState(null);
   const [masterCode, setMasterCode] = useState('');
   const [demoLoading, setDemoLoading] = useState(false);
+
+  useEffect(() => {
+    if (user?.role) {
+      navigate(homeForRole(user.role), { replace: true });
+      return;
+    }
+    if (localStorage.getItem('masterToken')) {
+      navigate('/master', { replace: true });
+    }
+  }, [navigate, user?.role]);
 
   useEffect(() => {
     api.get('/public/plans')
@@ -301,7 +313,7 @@ export default function Login() {
           {/* Left: hero */}
           <div className="w-full lg:flex-1 lg:max-w-lg text-center lg:text-left order-2 lg:order-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/8 px-3.5 py-1.5 text-xs text-gold font-semibold mb-5">
-              <BadgeCheck size={13} /> SaaS para barbearias · Aprovação manual
+              <BadgeCheck size={13} /> Sistema para barbearias · Aprovação manual
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-[52px] font-black leading-[1.05] tracking-tight">
@@ -333,7 +345,7 @@ export default function Login() {
             <div className="mt-10 grid grid-cols-3 gap-3">
               {[
                 { label: 'Pré-cadastro', desc: 'Simples e guiado' },
-                { label: 'Pix na liberação', desc: 'QR Code no 1º acesso' },
+                { label: 'Pix na liberação', desc: 'Código QR no 1º acesso' },
                 { label: 'Suporte humano', desc: 'Painel master dedicado' },
               ].map(item => (
                 <div key={item.label} className="rounded-xl border border-white/8 bg-white/3 p-3 text-center">
@@ -420,7 +432,7 @@ export default function Login() {
                       <ShieldCheck size={18} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs uppercase tracking-[0.2em] text-gold font-bold">Verificação em 2 etapas</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-gold font-bold">Verificação em duas etapas</p>
                       <p className="mt-1 text-sm text-white font-semibold">Enviamos um código para {masterChallenge.sentTo}.</p>
                       <p className="mt-1 text-xs text-gray-400 leading-5">Digite o código para liberar o acesso master com segurança adicional.</p>
                     </div>
@@ -472,10 +484,10 @@ export default function Login() {
                     <Sparkles size={18} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-gold font-bold">Acesso demo</p>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-gold font-bold">Acesso de demonstração</p>
                     <p className="text-sm text-white font-semibold mt-1">Teste o UpBarber como dono de barbearia.</p>
                     <p className="text-xs text-gray-400 mt-1 leading-5">
-                      Entra com dados reais de demonstração para ver agenda, clientes, vendas, planos e relatórios.
+                      Entre com dados reais de demonstração para ver agenda, clientes, vendas, planos e relatórios.
                     </p>
                   </div>
                 </div>
@@ -487,11 +499,11 @@ export default function Login() {
                   className="btn-secondary w-full justify-center py-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <ArrowRight size={16} />
-                  {demoLoading ? 'Entrando no demo...' : 'Entrar no demo agora'}
+                  {demoLoading ? 'Entrando na demonstração...' : 'Entrar na demonstração agora'}
                 </button>
 
                 <p className="text-[11px] text-gray-500 leading-5">
-                  Login demo: demo@upbarber.com · Senha: Demo@12345
+                  Acesso de demonstração: demo@upbarber.com · Senha: Demo@12345
                 </p>
               </div>
             </div>

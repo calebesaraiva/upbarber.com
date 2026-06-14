@@ -7,4 +7,5 @@ export const branchesService = {
   update: (id, data) => api.put(`/branches/${id}`, data),
   delete: (id) => api.delete(`/branches/${id}`),
   toggle: (id) => api.patch(`/branches/${id}/toggle`),
+  setMain: (id) => api.patch(`/branches/${id}/main`),
 };

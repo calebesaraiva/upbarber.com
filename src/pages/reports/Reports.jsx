@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { reportsService } from '../../services/reports.service';
+import { useBranch } from '../../context/BranchContext';
 
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const COLORS = ['#D4AF37', '#8B5CF6', '#10B981', '#3B82F6', '#F59E0B', '#EF4444'];
@@ -36,27 +37,36 @@ function Stat({ label, value, sub, icon: Icon, color = 'text-gold' }) {
 }
 
 export default function Reports() {
+  const { branches, currentBranch, ready } = useBranch();
   const [period, setPeriod] = useState('monthly');
+  const [branchView, setBranchView] = useState('current');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const activeBranchId = branchView === 'all' ? 'all' : branchView === 'current' ? (currentBranch?.id || 'all') : branchView;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await reportsService.getReport(period);
+      const params = activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId };
+      const res = await reportsService.getReport(period, params);
       setData(res.data?.data ?? res.data);
     } catch {
       setData(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [period, activeBranchId]);
 
-  useEffect(() => { load(); }, [period]);
+  useEffect(() => {
+    if (!ready) return;
+    queueMicrotask(() => {
+      load();
+    });
+  }, [period, activeBranchId, ready, load]);
 
   const exportCsv = async () => {
-    const r = await reportsService.exportCsv({});
+    const r = await reportsService.exportCsv(activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId });
     const url = URL.createObjectURL(new Blob([r.data], { type: 'text/csv' }));
     const a = document.createElement('a'); a.href = url; a.download = 'relatorio-upbarber.csv'; a.click();
     URL.revokeObjectURL(url);
@@ -65,7 +75,7 @@ export default function Reports() {
   const exportPdf = async () => {
     setExportingPdf(true);
     try {
-      const r = await reportsService.exportPdf({ period });
+      const r = await reportsService.exportPdf({ period, ...(activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId }) });
       const url = URL.createObjectURL(new Blob([r.data], { type: 'application/pdf' }));
       const a = document.createElement('a'); a.href = url; a.download = `relatorio-${period}.pdf`; a.click();
       URL.revokeObjectURL(url);
@@ -98,6 +108,16 @@ export default function Reports() {
           </div>
         }
       />
+
+      <div className="flex flex-wrap gap-2">
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView('all')}>Todas as filiais</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(currentBranch?.id || 'all')}>Filial atual</button>
+        {branches.map(branch => (
+          <button key={branch.id} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(branch.id)}>
+            {branch.name}
+          </button>
+        ))}
+      </div>
 
       {/* Period selector */}
       <div className="flex gap-2 flex-wrap">

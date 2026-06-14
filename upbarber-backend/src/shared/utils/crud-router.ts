@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { PrismaClient } from "@prisma/client";
 import { z, type AnyZodObject } from "zod";
 import { validate } from "../middleware/validate.js";
-import { created, noContent, ok, paginated } from "./http.js";
+import { AppError, created, noContent, ok, paginated } from "./http.js";
 import { pagination, tenantId, textSearch } from "./query.js";
 
 type Delegate = {
@@ -22,6 +22,8 @@ type CrudOptions = {
   tenantField?: string;
   softDelete?: boolean;
   include?: unknown;
+  listWhere?: (req: Express.Request) => Record<string, unknown>;
+  itemWhere?: (req: Express.Request) => Record<string, unknown>;
   beforeCreate?: (data: Record<string, unknown>, req: Express.Request) => Record<string, unknown>;
   beforeUpdate?: (data: Record<string, unknown>, req: Express.Request) => Record<string, unknown>;
 };
@@ -39,6 +41,7 @@ export function crudRouter(options: CrudOptions) {
     const { page, limit, skip } = pagination(req.query);
     const where: Record<string, unknown> = {
       [tenantField]: tenantId(req),
+      ...(options.listWhere?.(req) ?? {}),
       ...textSearch(req.query.search, options.searchFields ?? ["name"])
     };
 
@@ -61,22 +64,24 @@ export function crudRouter(options: CrudOptions) {
   });
 
   router.get("/:id", validate({ params: idParams }), async (req, res) => {
-    const item = await delegate.findFirst({ where: { id: req.params.id, [tenantField]: tenantId(req) }, include: options.include });
+    const item = await delegate.findFirst({ where: { id: req.params.id, [tenantField]: tenantId(req), ...(options.itemWhere?.(req) ?? {}) }, include: options.include });
     return ok(res, item);
   });
 
   router.put("/:id", validate({ params: idParams, body: updateSchema }), async (req, res) => {
     const data = options.beforeUpdate?.(req.body, req) ?? req.body;
+    const scope = { id: req.params.id, [tenantField]: tenantId(req), ...(options.itemWhere?.(req) ?? {}) };
+    const existing = await delegate.findFirst({ where: scope });
+    if (!existing) throw new AppError(404, "NOT_FOUND", "Registro não encontrado");
     const item = await delegate.update({ where: { id: req.params.id }, data, include: options.include });
     return ok(res, item);
   });
 
   router.delete("/:id", validate({ params: idParams }), async (req, res) => {
-    if (options.softDelete) {
-      await delegate.update({ where: { id: req.params.id }, data: { isActive: false } });
-    } else {
-      await delegate.update({ where: { id: req.params.id }, data: { isActive: false } });
-    }
+    const scope = { id: req.params.id, [tenantField]: tenantId(req), ...(options.itemWhere?.(req) ?? {}) };
+    const existing = await delegate.findFirst({ where: scope });
+    if (!existing) throw new AppError(404, "NOT_FOUND", "Registro não encontrado");
+    await delegate.update({ where: { id: req.params.id }, data: { isActive: false } });
     return noContent(res);
   });
 

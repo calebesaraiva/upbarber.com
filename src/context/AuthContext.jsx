@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth.service';
@@ -25,7 +26,7 @@ export function AuthProvider({ children }) {
         .catch(() => localStorage.clear())
         .finally(() => setLoading(false));
     } else {
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
     }
   }, []);
 
@@ -36,6 +37,8 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('masterToken');
       localStorage.setItem('upbarber:token', data.accessToken);
       localStorage.setItem('upbarber:refreshToken', data.refreshToken);
+      localStorage.setItem('upbarber:lastActivityAt', String(Date.now()));
+      window.dispatchEvent(new Event('upbarber-auth-changed'));
       setUser(data.user);
       setBarbershop(data.user?.barbershop || data.barbershop);
       navigate(homeForRole(data.user?.role));
@@ -51,6 +54,8 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('upbarber:refreshToken');
         localStorage.removeItem('upbarber:branchId');
         localStorage.setItem('masterToken', data.token);
+        localStorage.setItem('upbarber:lastActivityAt', String(Date.now()));
+        window.dispatchEvent(new Event('upbarber-auth-changed'));
         setUser(null);
         setBarbershop(null);
         navigate('/master');
@@ -65,9 +70,10 @@ export function AuthProvider({ children }) {
     const refresh = localStorage.getItem('upbarber:refreshToken');
     await authService.logout(refresh).catch(() => {});
     localStorage.clear();
+    window.dispatchEvent(new Event('upbarber-auth-changed'));
     setUser(null);
     setBarbershop(null);
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   return (

@@ -39,6 +39,7 @@ import {
   createMasterPlan,
   updateMasterPlan,
   deleteMasterPlan,
+  getMasterBarbershopById,
   getMasterMrrHistory,
   getMasterRevenueByPlan,
   getMasterChurn,
@@ -437,6 +438,8 @@ function BarbeariasSection() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPlan, setFilterPlan] = useState("all");
   const [selected, setSelected] = useState(null);
+  const [detailShop, setDetailShop] = useState(null);
+  const [detailBranchId, setDetailBranchId] = useState("all");
   const [modal, setModal] = useState(null);
   const [suspendReason, setSuspendReason] = useState("");
   const [chargeMethod, setChargeMethod] = useState("Pix");
@@ -592,11 +595,28 @@ function BarbeariasSection() {
     }
   };
 
-  const openModal = (b, type) => {
+  const openModal = async (b, type) => {
     setSelected(b);
     setModal(type);
     setSuspendReason("");
     setChargeObs("");
+    if (type !== "detail") {
+      setDetailShop(null);
+      setDetailBranchId("all");
+      return;
+    }
+    setDetailShop(null);
+    setDetailBranchId("all");
+    try {
+      const res = await getMasterBarbershopById(b.id);
+      const data = unwrap(res.data);
+      setDetailShop(data);
+      const mainBranch = Array.isArray(data?.branches) ? data.branches.find(branch => branch.isMain) : null;
+      setDetailBranchId(mainBranch?.id || data?.branches?.[0]?.id || "all");
+    } catch {
+      setDetailShop(b);
+      setDetailBranchId("all");
+    }
   };
 
   if (loading) return <Spinner />;
@@ -735,21 +755,29 @@ function BarbeariasSection() {
       </Modal>
 
       {/* Detail Modal */}
-      <Modal open={modal === "detail" && !!selected} onClose={() => setModal(null)} title={selected?.name} width={640}>
-        {selected && (
+      <Modal open={modal === "detail" && !!selected} onClose={() => setModal(null)} title={selected?.name} width={760}>
+        {(detailShop || selected) && (
+          (() => {
+            const shop = detailShop || selected;
+            const branches = Array.isArray(shop?.branches) ? shop.branches : [];
+            const activeBranch = detailBranchId === "all"
+              ? null
+              : branches.find(branch => branch.id === detailBranchId) || branches.find(branch => branch.isMain) || branches[0] || null;
+            const branchStats = activeBranch?._count || {};
+            return (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
               {[
-                ["Proprietário", selected.ownerName],
-                ["Email", selected.email],
-                ["Telefone", selected.phone ?? "—"],
-                ["Plano", selected.plan],
-                ["Status", <StatusBadge key="s" status={selected.saasStatus} />],
-                ["MRR", selected.mrr > 0 ? fmt(selected.mrr) : "—"],
-                ["Filiais", selected.filiais ?? 1],
-                ["Clientes", (selected.clientsCount ?? 0).toLocaleString("pt-BR")],
-                ["Cliente desde", selected.since ? new Date(selected.since).toLocaleDateString("pt-BR") : "—"],
-                ["Próx. cobrança", selected.nextBillingDate ?? "—"],
+                ["Proprietário", shop.ownerName],
+                ["Email", shop.email],
+                ["Telefone", shop.phone ?? "—"],
+                ["Plano", shop.plan],
+                ["Status", <StatusBadge key="s" status={shop.saasStatus} />],
+                ["MRR", shop.mrr > 0 ? fmt(shop.mrr) : "—"],
+                ["Filiais", shop.filiais ?? 1],
+                ["Clientes", (shop.clientsCount ?? 0).toLocaleString("pt-BR")],
+                ["Cliente desde", shop.since ? new Date(shop.since).toLocaleDateString("pt-BR") : "—"],
+                ["Próx. cobrança", shop.nextBillingDate ?? "—"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <div style={{ color: P.muted, fontSize: 12, marginBottom: 4 }}>{label}</div>
@@ -757,14 +785,57 @@ function BarbeariasSection() {
                 </div>
               ))}
             </div>
-            <ModulesEditor barbershopId={selected?.id} P={P} />
+            {branches.length > 0 && (
+              <div style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 10, padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <div style={{ color: P.text, fontWeight: 700, fontSize: 14 }}>Filiais da barbearia</div>
+                    <div style={{ color: P.muted, fontSize: 12, marginTop: 3 }}>Selecione uma unidade para ver os números dela no master</div>
+                  </div>
+                  <select
+                    value={detailBranchId}
+                    onChange={e => setDetailBranchId(e.target.value)}
+                    style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 12px", color: P.text, fontSize: 13 }}
+                  >
+                    <option value="all">Todas as filiais</option>
+                    {branches.map(branch => (
+                      <option key={branch.id} value={branch.id}>{branch.name}{branch.isMain ? " · Matriz" : ""}</option>
+                    ))}
+                  </select>
+                </div>
+                {activeBranch ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 }}>
+                    {[
+                      ["Barbeiros", branchStats.barbers ?? 0],
+                      ["Agendamentos", branchStats.appointments ?? 0],
+                      ["Pedidos", branchStats.orders ?? 0],
+                      ["Produtos", branchStats.products ?? 0],
+                      ["Financeiro", branchStats.financialTransactions ?? 0],
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 8, padding: 12 }}>
+                        <div style={{ color: P.muted, fontSize: 11 }}>{label}</div>
+                        <div style={{ color: P.text, fontSize: 18, fontWeight: 800, marginTop: 4 }}>{value}</div>
+                      </div>
+                    ))}
+                    <div style={{ gridColumn: "1 / -1", color: P.muted, fontSize: 12, lineHeight: 1.5, marginTop: 2 }}>
+                      {activeBranch.address}{activeBranch.city ? ` · ${activeBranch.city}/${activeBranch.state}` : ""}{activeBranch.phone ? ` · ${activeBranch.phone}` : ""}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: P.muted, fontSize: 12 }}>Nenhuma filial específica selecionada no momento.</div>
+                )}
+              </div>
+            )}
+            <ModulesEditor barbershopId={shop?.id} P={P} />
             <div style={{ display: "flex", gap: 10, paddingTop: 8, borderTop: `1px solid ${P.border}` }}>
-              <Btn icon={LogIn} onClick={() => { setModal(null); handleImpersonate(selected); }} small>Impersonar</Btn>
-              {selected.email && (
-                <Btn icon={Mail} variant="ghost" small onClick={() => window.open(`mailto:${selected.email}`)}>Enviar Email</Btn>
+              <Btn icon={LogIn} onClick={() => { setModal(null); handleImpersonate(shop); }} small>Impersonar</Btn>
+              {shop.email && (
+                <Btn icon={Mail} variant="ghost" small onClick={() => window.open(`mailto:${shop.email}`)}>Enviar Email</Btn>
               )}
             </div>
           </div>
+            );
+          })()
         )}
       </Modal>
 

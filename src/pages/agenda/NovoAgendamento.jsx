@@ -7,6 +7,7 @@ import { servicesService } from '../../services/services.service';
 import { appointmentsService } from '../../services/appointments.service';
 import { useApp } from '../../context/AppContext';
 import { localDateInputValue } from '../../utils/date';
+import { useBranch } from '../../context/BranchContext';
 
 const today = localDateInputValue();
 
@@ -14,6 +15,7 @@ export default function NovoAgendamento() {
   const navigate = useNavigate();
   const editing = useLocation().state?.appointment;
   const { addToast } = useApp();
+  const { branches, currentBranch } = useBranch();
   const [clients, setClients] = useState([]);
   const [barbers, setBarbers] = useState([]);
   const [services, setServices] = useState([]);
@@ -22,6 +24,7 @@ export default function NovoAgendamento() {
     clientId: editing?.clientId || '',
     barberId: editing?.barberId || '',
     serviceId: editing?.serviceId || '',
+    branchId: editing?.branchId || currentBranch?.id || '',
     date: editing?.date?.slice?.(0, 10) || today,
     startTime: editing?.startTime || '',
     notes: editing?.notes || '',
@@ -38,17 +41,31 @@ export default function NovoAgendamento() {
   }, []);
 
   useEffect(() => {
-    if (!form.barberId || !form.serviceId || !form.date) return setSlots([]);
-    appointmentsService.getAvailability({ barberId: form.barberId, serviceId: form.serviceId, date: form.date })
-      .then(res => setSlots(res.data.data.availableSlots || []))
-      .catch(() => setSlots([]));
-  }, [form.barberId, form.serviceId, form.date]);
+    queueMicrotask(() => {
+      if (!form.barberId || !form.serviceId || !form.date) {
+        setSlots([]);
+        return;
+      }
+      appointmentsService.getAvailability({ barberId: form.barberId, serviceId: form.serviceId, date: form.date, branchId: form.branchId || undefined })
+        .then(res => setSlots(res.data.data.availableSlots || []))
+        .catch(() => setSlots([]));
+    });
+  }, [form.barberId, form.serviceId, form.date, form.branchId]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (currentBranch?.id && !form.branchId) {
+        setForm(prev => ({ ...prev, branchId: currentBranch.id }));
+      }
+    });
+  }, [currentBranch?.id, form.branchId]);
 
   const submit = async event => {
     event.preventDefault();
     try {
-      if (editing) await appointmentsService.update(editing.id, form);
-      else await appointmentsService.create(form);
+      const payload = { ...form, branchId: form.branchId || currentBranch?.id || undefined };
+      if (editing) await appointmentsService.update(editing.id, payload);
+      else await appointmentsService.create(payload);
       addToast(editing ? 'Agendamento atualizado!' : 'Agendamento criado!', 'success');
       navigate('/agenda');
     } catch (err) {
@@ -64,6 +81,12 @@ export default function NovoAgendamento() {
       </div>
       <form onSubmit={submit} className="max-w-3xl space-y-4">
         <div className="card grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="text-xs text-gray-400 md:col-span-2">Filial
+            <select className="input mt-1" value={form.branchId} onChange={upd('branchId')} required>
+              <option value="">Selecione</option>
+              {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}{branch.isMain ? ' · Matriz' : ''}</option>)}
+            </select>
+          </label>
           <label className="text-xs text-gray-400">Cliente<select className="input mt-1" value={form.clientId} onChange={upd('clientId')} required><option value="">Selecione</option>{clients.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
           <label className="text-xs text-gray-400">Serviço<select className="input mt-1" value={form.serviceId} onChange={upd('serviceId')} required><option value="">Selecione</option>{services.filter(x=>x.isActive).map(x=><option key={x.id} value={x.id}>{x.name} · R${x.price}</option>)}</select></label>
           <label className="text-xs text-gray-400">Barbeiro<select className="input mt-1" value={form.barberId} onChange={upd('barberId')} required><option value="">Selecione</option>{barbers.filter(x=>x.isActive).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>

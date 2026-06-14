@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Modal } from '../../components/ui/Modal';
 import { financialService } from '../../services/financial.service';
 import { useApp } from '../../context/AppContext';
 import { localDateInputValue } from '../../utils/date';
+import { useBranch } from '../../context/BranchContext';
 
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -12,24 +13,34 @@ const PM_LABELS = { pix: 'Pix', cash: 'Dinheiro', credit: 'Crédito', debit: 'D�
 
 export default function CaixaDia() {
   const { addToast } = useApp();
+  const { branches, currentBranch, ready } = useBranch();
   const [summary, setSummary] = useState({});
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
+  const [branchView, setBranchView] = useState('current');
   const [form, setForm] = useState({ description: '', amount: '', type: 'income', category: 'Manual', paymentMethod: 'cash', date: localDateInputValue() });
+  const activeBranchId = branchView === 'all' ? 'all' : branchView === 'current' ? (currentBranch?.id || 'all') : branchView;
 
-  const load = () => Promise.all([
-    financialService.getSummary(),
-    financialService.listTransactions({ limit: 100 }),
-  ]).then(([s, t]) => {
+  const load = useCallback(async () => {
+    const params = activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId };
+    const [s, t] = await Promise.all([
+      financialService.getSummary(params),
+      financialService.listTransactions({ limit: 100, ...params }),
+    ]);
     setSummary(s.data.data || {});
     setItems(t.data.data?.data || []);
-  });
+  }, [activeBranchId]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!ready) return;
+    queueMicrotask(() => {
+      load().catch(() => addToast('Erro ao carregar caixa', 'error'));
+    });
+  }, [ready, activeBranchId, addToast, load]);
 
   const save = async () => {
     try {
-      await financialService.createTransaction({ ...form, amount: Number(form.amount) });
+      await financialService.createTransaction({ ...form, branchId: currentBranch?.id || undefined, amount: Number(form.amount) });
       setOpen(false);
       setForm({ description: '', amount: '', type: 'income', category: 'Manual', paymentMethod: 'cash', date: localDateInputValue() });
       await load();
@@ -46,6 +57,16 @@ export default function CaixaDia() {
         subtitle="Movimentações financeiras do dia"
         actions={<button className="btn-primary" onClick={() => setOpen(true)}><Plus size={14} /> Lançamento</button>}
       />
+
+      <div className="flex flex-wrap gap-2">
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView('all')}>Todas as filiais</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(currentBranch?.id || 'all')}>Filial atual</button>
+        {branches.map(branch => (
+          <button key={branch.id} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(branch.id)}>
+            {branch.name}
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-3 gap-4">
         <div className="card">
@@ -84,6 +105,7 @@ export default function CaixaDia() {
 
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Novo lançamento">
         <div className="space-y-3">
+          <p className="text-xs text-gray-500">Esse lançamento será registrado na filial ativa.</p>
           <input className="input" placeholder="Descrição" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
           <input className="input" type="number" placeholder="Valor (R$)" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
           <select className="input" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>

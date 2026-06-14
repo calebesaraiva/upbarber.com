@@ -310,6 +310,14 @@ router.get("/barbershops/:id", validate({ params: idParams }), async (req, res) 
       users: { where: { role: "admin" }, take: 1 },
       invoices: { orderBy: { dueDate: "desc" }, take: 5 },
       tickets: { where: { status: { in: ["open", "in_progress"] } }, orderBy: { createdAt: "desc" } },
+      branches: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          _count: {
+            select: { barbers: true, appointments: true, orders: true, financialTransactions: true, products: true }
+          }
+        }
+      },
       _count: { select: { clients: true, branches: true, barbers: true } }
     }
   });

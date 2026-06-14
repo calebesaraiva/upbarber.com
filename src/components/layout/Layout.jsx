@@ -1,5 +1,6 @@
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { BranchSwitcher } from './BranchSwitcher';
 import { BottomNavigation } from './BottomNavigation';
 import { ToastContainer } from '../ui/Toast';
 import { SaasPaymentGate } from '../billing/SaasPaymentGate';
@@ -11,6 +12,7 @@ export function Layout({ children }) {
       <Sidebar />
       <div className="flex-1 flex flex-col lg:ml-60 min-h-screen">
         <Header />
+        <BranchSwitcher mobile />
         <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6 overflow-x-hidden">
           {children}
           <footer className="mt-8 pt-4 border-t border-dark-400 text-[11px] text-gray-600">

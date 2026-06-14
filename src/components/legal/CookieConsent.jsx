@@ -4,16 +4,28 @@ import { ShieldCheck, X } from 'lucide-react';
 import { COMPANY } from '../../constants/company';
 
 const STORAGE_KEY = 'upbarber_cookie_consent_v1';
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+function hasAcceptedConsent() {
+  if (typeof document === 'undefined') return false;
+  if (localStorage.getItem(STORAGE_KEY) === 'accepted') return true;
+  return document.cookie.split('; ').some(item => item.startsWith(`${STORAGE_KEY}=accepted`));
+}
+
+function persistConsent() {
+  localStorage.setItem(STORAGE_KEY, 'accepted');
+  document.cookie = `${STORAGE_KEY}=accepted; path=/; max-age=${COOKIE_MAX_AGE}; samesite=lax`;
+}
 
 export function CookieConsent() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    setVisible(localStorage.getItem(STORAGE_KEY) !== 'accepted');
+    setVisible(!hasAcceptedConsent());
   }, []);
 
   const accept = () => {
-    localStorage.setItem(STORAGE_KEY, 'accepted');
+    persistConsent();
     setVisible(false);
   };
 

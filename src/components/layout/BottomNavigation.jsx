@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, Users, BarChart3, Settings } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Users, Building2, BarChart3, Settings } from 'lucide-react';
 
 const items = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Início' },
   { to: '/agenda', icon: CalendarDays, label: 'Agenda' },
   { to: '/clientes', icon: Users, label: 'Clientes' },
+  { to: '/filiais', icon: Building2, label: 'Filiais' },
   { to: '/financeiro', icon: BarChart3, label: 'Financeiro' },
-  { to: '/configuracoes', icon: Settings, label: 'Config' },
+  { to: '/configuracoes', icon: Settings, label: 'Configurações' },
 ];
 
 export function BottomNavigation() {

@@ -53,6 +53,7 @@ export const productSchema = z.object({
   stock: z.coerce.number().int().default(0),
   minStock: z.coerce.number().int().default(0),
   internalCode: z.string().optional().nullable(),
+  branchId: z.string().optional().nullable(),
   isActive: z.boolean().optional()
 });
 
