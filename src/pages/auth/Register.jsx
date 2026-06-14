@@ -15,7 +15,48 @@ export default function Register() {
   const [error, setError] = useState('');
 
   const upd = k => e => setForm({...form, [k]: e.target.value});
+  const isValidEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
   useEffect(()=>{api.get('/public/plans').then(r=>{const rows=r.data.data||[];setPlans(rows);setForm(f=>({...f,planId:f.planId||rows[0]?.id||''}))})},[]);
+
+  const goToAccessStep = () => {
+    setError('');
+    if (!form.name.trim()) {
+      setError('Digite o nome da barbearia para continuar.');
+      return;
+    }
+    setStep(2);
+  };
+
+  const validateAccessStep = async () => {
+    const email = form.email.trim().toLowerCase();
+    setError('');
+    if (!email) {
+      setError('Digite seu e-mail para continuar.');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setError('Digite um e-mail válido para continuar.');
+      return;
+    }
+    if (form.password.length < 6) {
+      setError('A senha precisa ter pelo menos 6 caracteres.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await authService.emailStatus(email);
+      if (res.data.data?.exists) {
+        setError('E-mail já cadastrado. Use o login ou recupere sua senha.');
+        return;
+      }
+      setForm(current => ({ ...current, email }));
+      setStep(3);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Não foi possível validar o e-mail agora.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submit = async () => {
     setLoading(true);
@@ -70,7 +111,8 @@ export default function Register() {
                 <div><label className="text-xs text-gray-400 mb-1 block">Cidade</label><input className="input" value={form.city} onChange={upd('city')} placeholder="São Paulo, SP" /></div>
                 <div><label className="text-xs text-gray-400 mb-1 block">Telefone / WhatsApp</label><input className="input" value={form.phone} onChange={upd('phone')} placeholder="(11) 99999-9999" /></div>
               </div>
-              <button className="btn-primary w-full justify-center mt-6" onClick={() => setStep(2)}>Continuar</button>
+              {error && <p role="alert" className="text-xs text-red-400 text-center mt-3">{error}</p>}
+              <button className="btn-primary w-full justify-center mt-6" onClick={goToAccessStep}>Continuar</button>
             </>
           )}
           {step === 2 && (
@@ -83,8 +125,9 @@ export default function Register() {
               </div>
               <div className="flex gap-3 mt-6">
                 <button className="btn-secondary flex-1 justify-center" onClick={() => setStep(1)}>Voltar</button>
-                <button className="btn-primary flex-1 justify-center" onClick={() => setStep(3)}>Continuar</button>
+                <button className="btn-primary flex-1 justify-center" onClick={validateAccessStep} disabled={loading}>{loading ? 'Validando...' : 'Continuar'}</button>
               </div>
+              {error && <p role="alert" className="text-xs text-red-400 text-center mt-3">{error}</p>}
             </>
           )}
           {step === 3 && !submitted && (

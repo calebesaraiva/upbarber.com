@@ -27,10 +27,17 @@ const loginSchema = z.object({ email: z.string().email(), password: z.string().m
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 const forgotSchema = z.object({ email: z.string().email() });
 const resetSchema = z.object({ email: z.string().email(), code: z.string().length(6), newPassword: z.string().min(6) });
+const emailStatusSchema = z.object({ email: z.string().email() });
 
 function tokenPayload(user: { id: string; barbershopId: string | null; role: TokenPayload["role"]; email: string }) {
   return { userId: user.id, barbershopId: user.barbershopId, role: user.role, email: user.email };
 }
+
+router.get("/email-status", validate({ query: emailStatusSchema }), async (req, res) => {
+  const email = String(req.query.email).toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  return ok(res, { exists: Boolean(user) });
+});
 
 router.post("/register", validate({ body: registerSchema }), async (req, res) => {
   const passwordHash = await bcrypt.hash(req.body.password, 10);
@@ -126,8 +133,9 @@ router.post("/logout", validate({ body: refreshSchema }), async (req, res) => {
 
 router.post("/forgot-password", validate({ body: forgotSchema }), async (req, res) => {
   const user = await prisma.user.findUnique({ where: { email: req.body.email.toLowerCase() } });
-  if (user) await issueCode(user.id, "reset_password", user.email);
-  return ok(res, { message: "Se o email existir, enviaremos instruções para redefinição." });
+  if (!user) throw new AppError(404, "EMAIL_NOT_FOUND", "E-mail errado ou não cadastrado no sistema");
+  await issueCode(user.id, "reset_password", user.email);
+  return ok(res, { message: "Enviamos um código de recuperação para seu e-mail." });
 });
 
 router.post("/reset-password", validate({ body: resetSchema }), async (req, res) => {

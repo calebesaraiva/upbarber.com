@@ -10,18 +10,51 @@ export default function ForgotPassword() {
   const [password, setPassword] = useState('');
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const isValidEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
   const send = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    setError('');
+    if (!normalizedEmail) {
+      setError('Digite seu e-mail para continuar.');
+      return;
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setError('Digite um e-mail válido para receber o código.');
+      return;
+    }
     setLoading(true);
-    await authService.forgotPassword(email).catch(() => {});
-    setLoading(false);
-    setSent(true);
+    try {
+      await authService.forgotPassword(normalizedEmail);
+      setEmail(normalizedEmail);
+      setSent(true);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'E-mail errado ou não cadastrado no sistema.');
+    } finally {
+      setLoading(false);
+    }
   };
   const reset = async () => {
+    setError('');
+    if (!code.trim()) {
+      setError('Digite o código enviado para seu e-mail.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('A nova senha precisa ter pelo menos 6 caracteres.');
+      return;
+    }
     setLoading(true);
-    await authService.resetPassword({ email, code, newPassword: password });
-    setLoading(false);
-    setDone(true);
+    try {
+      await authService.resetPassword({ email, code, newPassword: password });
+      setDone(true);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Não foi possível redefinir a senha.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -42,7 +75,8 @@ export default function ForgotPassword() {
                   <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" />
                 </div>
               </div>
-              <button className="btn-primary w-full justify-center mt-6" onClick={send}>{loading ? 'Enviando...' : 'Enviar código'}</button>
+              {error && <p role="alert" className="text-xs text-red-400 text-center mt-3">{error}</p>}
+              <button className="btn-primary w-full justify-center mt-6" onClick={send} disabled={loading}>{loading ? 'Enviando...' : 'Enviar código'}</button>
             </>
           ) : !done ? (
             <>
@@ -52,7 +86,8 @@ export default function ForgotPassword() {
                 <input className="input" value={code} onChange={e=>setCode(e.target.value)} placeholder="Código de 6 dígitos" />
                 <input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Nova senha" />
               </div>
-              <button className="btn-primary w-full justify-center mt-6" onClick={reset}>{loading ? 'Salvando...' : 'Redefinir senha'}</button>
+              {error && <p role="alert" className="text-xs text-red-400 text-center mt-3">{error}</p>}
+              <button className="btn-primary w-full justify-center mt-6" onClick={reset} disabled={loading}>{loading ? 'Salvando...' : 'Redefinir senha'}</button>
             </>
           ) : (
             <div className="text-center">
