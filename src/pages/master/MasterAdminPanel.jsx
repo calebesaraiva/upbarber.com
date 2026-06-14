@@ -1754,7 +1754,20 @@ function ConfigSection() {
               <option value="mercadopago">Mercado Pago</option>
             </select>
           </div>
-          <Input label="Ambiente Efí" value={config.efi_environment ?? ""} onChange={e => upd("efi_environment", e.target.value)} placeholder="production / sandbox" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={{ color: P.muted, fontSize: 13 }}>Ambiente Efí</label>
+            <select
+              value={(config.efi_environment ?? "production").toLowerCase() === "sandbox" || (config.efi_environment ?? "").toLowerCase() === "homologacao" ? "sandbox" : "production"}
+              onChange={e => upd("efi_environment", e.target.value)}
+              style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 14px", color: P.text, fontSize: 14 }}
+            >
+              <option value="production">Produção</option>
+              <option value="sandbox">Homologação</option>
+            </select>
+            <span style={{ color: P.muted, fontSize: 12, lineHeight: 1.5 }}>
+              Use homologação para testes e produção somente com as credenciais finais da conta Efí.
+            </span>
+          </div>
           <Input label="Client ID Efí" value={config.efi_client_id ?? ""} onChange={e => upd("efi_client_id", e.target.value)} placeholder="Client_Id_..." />
           <Input label="Client Secret Efí" type="password" value={config.efi_client_secret ?? ""} onChange={e => upd("efi_client_secret", e.target.value)} placeholder="Client_Secret_..." />
           <Input label="Caminho do certificado P12" value={config.efi_cert_path ?? ""} onChange={e => upd("efi_cert_path", e.target.value)} placeholder="/opt/upbarber/certificados/efi.p12" />
