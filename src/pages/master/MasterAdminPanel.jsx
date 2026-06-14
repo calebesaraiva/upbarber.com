@@ -118,7 +118,7 @@ function ErrMsg({ msg, onRetry }) {
 const StatusBadge = ({ status }) => {
   const map = {
     active:      { label: "Ativo",        bg: "#064E3B", color: P.green },
-    trial:       { label: "Trial",        bg: "#1E3A5F", color: P.blue },
+    trial:       { label: "Teste",        bg: "#1E3A5F", color: P.blue },
     overdue:     { label: "Inadimpl.",    bg: "#7C2D12", color: P.yellow },
     suspended:   { label: "Suspenso",     bg: "#1F2937", color: P.muted },
     cancelled:   { label: "Cancelado",    bg: "#1F2937", color: P.muted },
@@ -198,10 +198,10 @@ const Btn = ({ children, variant = "primary", onClick, style: s, icon: Icon, sma
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
 const NAV = [
-  { id: "dashboard",  label: "Dashboard",     Icon: LayoutDashboard },
+  { id: "dashboard",  label: "Painel",        Icon: LayoutDashboard },
   { id: "barbearias", label: "Barbearias",    Icon: Store },
   { id: "cobrancas",  label: "Cobranças",     Icon: CreditCard },
-  { id: "planos",     label: "Planos SaaS",   Icon: Package },
+  { id: "planos",     label: "Planos da Plataforma", Icon: Package },
   { id: "relatorios", label: "Relatórios",    Icon: BarChart2 },
   { id: "suporte",    label: "Suporte",       Icon: Headphones },
   { id: "config",     label: "Configurações", Icon: Settings },
@@ -270,13 +270,13 @@ function DashboardSection() {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {s.overdue > 0 && <AlertBanner icon={AlertTriangle} color={P.red} bg="#7C2D12" text={`${s.overdue} barbearia(s) inadimplentes`} />}
-        {s.trial > 0 && <AlertBanner icon={Clock} color={P.yellow} bg="#78350F" text={`${s.trial} barbearia(s) em período trial`} />}
+        {s.trial > 0 && <AlertBanner icon={Clock} color={P.yellow} bg="#78350F" text={`${s.trial} barbearia(s) em período de teste`} />}
         {s.suspended > 0 && <AlertBanner icon={Ban} color={P.muted} bg="#1F2937" text={`${s.suspended} barbearia(s) suspensa(s)`} />}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 16 }}>
         <Stat label="Barbearias Ativas"   value={s.active}       icon={Store}       color={P.green}       sub={`+${s.newThisMonth ?? 0} este mês`} trend="up" />
-        <Stat label="Trials"              value={s.trial}        icon={Clock}       color={P.blue} />
+        <Stat label="Testes"              value={s.trial}        icon={Clock}       color={P.blue} />
         <Stat label="Suspensas"           value={s.suspended}    icon={Ban}         color={P.red} />
         <Stat label="Total Barbearias"    value={s.total}        icon={Users}       color={P.muted} />
       </div>
@@ -641,7 +641,7 @@ function BarbeariasSection() {
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 14px", color: P.text, fontSize: 14, cursor: "pointer" }}>
           <option value="all">Todos os status</option>
           <option value="active">Ativo</option>
-          <option value="trial">Trial</option>
+          <option value="trial">Teste</option>
           <option value="overdue">Inadimplente</option>
           <option value="suspended">Suspenso</option>
         </select>
@@ -673,8 +673,8 @@ function BarbeariasSection() {
         {pending.map(shop=><div key={shop.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 0",borderTop:`1px solid ${P.border}`}}><span style={{color:P.text,flex:1}}>{shop.name} · {shop.users?.[0]?.email}</span><Btn small onClick={()=>approve(shop)}>Aprovar</Btn><Btn small variant="ghost" onClick={async()=>{await rejectRegistration(shop.id);await loadPending()}}>Rejeitar</Btn></div>)}
       </div>}
 
-      <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <table style={{ width: "100%", minWidth: 920, borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: P.surface }}>
               {["Barbearia", "Plano", "Status", "MRR", "Filiais", "Clientes", "Próx. Cobrança", "Ações"].map(h => (
@@ -972,8 +972,8 @@ function CobrancasSection() {
         <Btn icon={RefreshCw} variant="ghost" small onClick={load}>Atualizar</Btn>
       </div>
 
-      <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <table style={{ width: "100%", minWidth: 860, borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: P.surface }}>
               {["Barbearia", "Plano", "Valor", "Status", "Vencimento", "Método", "Ações"].map(h => (
@@ -1163,7 +1163,7 @@ function PlanosSection() {
                 ["Filiais", plan.maxFiliais ?? "∞"],
                 ["Barbeiros", plan.maxBarbers ?? "∞"],
                 ["Clientes", plan.maxClients ?? "∞"],
-                ["Storage", `${plan.storageGb ?? 1}GB`],
+                ["Armazenamento", `${plan.storageGb ?? 1}GB`],
               ].map(([k, v]) => (
                 <div key={k}>
                   <div style={{ color: P.muted, fontSize: 11 }}>{k}</div>
@@ -1204,7 +1204,7 @@ function PlanosSection() {
             <Input label="Máx. Filiais" type="number" value={editData.maxFiliais || ""} onChange={e => setEditData({ ...editData, maxFiliais: e.target.value })} placeholder="Ex: 3" />
             <Input label="Máx. Barbeiros (vazio = ilimitado)" type="number" value={editData.maxBarbers || ""} onChange={e => setEditData({ ...editData, maxBarbers: e.target.value })} />
             <Input label="Máx. Clientes (vazio = ilimitado)" type="number" value={editData.maxClients || ""} onChange={e => setEditData({ ...editData, maxClients: e.target.value })} />
-            <Input label="Storage (GB)" type="number" value={editData.storageGb || ""} onChange={e => setEditData({ ...editData, storageGb: e.target.value })} />
+            <Input label="Armazenamento (GB)" type="number" value={editData.storageGb || ""} onChange={e => setEditData({ ...editData, storageGb: e.target.value })} />
             <Input label="Cor (hex)" value={editData.color || ""} onChange={e => setEditData({ ...editData, color: e.target.value })} placeholder="#8B5CF6" />
             <Input label="Ícone (emoji)" value={editData.icon || ""} onChange={e => setEditData({ ...editData, icon: e.target.value })} placeholder="🚀" />
           </div>
@@ -1330,14 +1330,14 @@ function RelatoriosSection() {
       )}
 
       {revenueByPlan.length > 0 && (
-        <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           <div style={{ padding: "16px 20px", borderBottom: `1px solid ${P.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h3 style={{ color: P.text, fontWeight: 700, fontSize: 15, margin: 0 }}>Resumo por Plano</h3>
             <div style={{ display: "flex", gap: 8 }}>
               <Btn icon={Download} variant="ghost" small onClick={() => handleExport("summary")}>CSV</Btn>
             </div>
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", minWidth: 800, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: P.surface }}>
                 {["Plano", "Assinantes", "MRR", "Ticket Médio", "LTV Estimado"].map(h => (
@@ -1452,8 +1452,8 @@ function SuporteSection() {
         <Btn icon={RefreshCw} variant="ghost" small onClick={load} style={{ marginLeft: "auto" }}>Atualizar</Btn>
       </div>
 
-      <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <table style={{ width: "100%", minWidth: 1040, borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: P.surface }}>
               {["ID", "Barbearia", "Assunto", "Prioridade", "Status", "Criado em", "Atendente", ""].map(h => (
@@ -1842,10 +1842,10 @@ const SECTION_COMPONENTS = {
 };
 
 const SECTION_TITLES = {
-  dashboard:  "Dashboard da Plataforma",
+  dashboard:  "Painel da Plataforma",
   barbearias: "Gerenciar Barbearias",
   cobrancas:  "Cobranças e Pagamentos",
-  planos:     "Planos SaaS",
+  planos:     "Planos da Plataforma",
   relatorios: "Relatórios da Plataforma",
   suporte:    "Central de Suporte",
   config:     "Configurações do Sistema",
@@ -1887,7 +1887,7 @@ export default function MasterAdminPanel() {
           <div style={{ minWidth: 0 }}>
             <div style={{ color: P.text, fontWeight: 800, fontSize: 15, lineHeight: 1.2 }}>{COMPANY.product}</div>
             <div style={{ color: P.muted, fontSize: 10, marginTop: 2 }}>{COMPANY.developer}</div>
-            <div style={{ background: P.purple, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, display: "inline-block", letterSpacing: 1, marginTop: 6 }}>MASTER ADMIN</div>
+            <div style={{ background: P.purple, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, display: "inline-block", letterSpacing: 1, marginTop: 6 }}>ADMINISTRADOR MASTER</div>
           </div>
         )}
       </div>
@@ -2000,7 +2000,7 @@ export default function MasterAdminPanel() {
               </div>
             )}
             <div style={{ background: "#064E3B", color: P.green, fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>
-              Plataforma Online
+              Sistema online
             </div>
             {!isMobile && (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

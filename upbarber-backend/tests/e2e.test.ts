@@ -403,6 +403,7 @@ describe("UpBarber API end-to-end", () => {
     const password = "Tenant@123";
     const plans = await request(app).get("/api/v1/master/plans").set("Authorization", `Bearer ${masterToken}`);
     const planId = plans.body.data[0].id;
+    const targetPlanId = plans.body.data.find((plan: { id: string }) => plan.id !== planId)?.id;
     const dueDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString();
 
     const provisioned = await request(app)
@@ -450,6 +451,36 @@ describe("UpBarber API end-to-end", () => {
         .get(`/api/v1/clients/${client.body.data.id}`)
         .set("Authorization", `Bearer ${userToken}`);
       expect(primaryTenantCannotRead.body.data.client).toBeNull();
+
+      if (targetPlanId) {
+        const migration = await request(app)
+          .post("/api/v1/saas/plan-change-requests")
+          .set("Authorization", `Bearer ${tenantToken}`)
+          .send({ targetPlanId, note: "Teste automatizado de migração de plano" });
+        expect(migration.status).toBe(201);
+        expect(migration.body.data.status).toBe("pending");
+        expect(migration.body.data.currentPlanId).toBe(planId);
+        expect(migration.body.data.targetPlanId).toBe(targetPlanId);
+
+        const listedRequests = await request(app)
+          .get("/api/v1/saas/plan-change-requests")
+          .set("Authorization", `Bearer ${tenantToken}`);
+        expect(listedRequests.status).toBe(200);
+        expect(listedRequests.body.data.some((item: { id: string }) => item.id === migration.body.data.id)).toBe(true);
+
+        const approved = await request(app)
+          .patch(`/api/v1/master/plan-change-requests/${migration.body.data.id}/approve`)
+          .set("Authorization", `Bearer ${masterToken}`)
+          .send({});
+        expect(approved.status).toBe(200);
+        expect(approved.body.data.saasPlanId).toBe(targetPlanId);
+
+        const afterPlan = await request(app)
+          .get("/api/v1/barbershop")
+          .set("Authorization", `Bearer ${tenantToken}`);
+        expect(afterPlan.status).toBe(200);
+        expect(afterPlan.body.data.saasPlanId || afterPlan.body.data.saasPlansId).toBe(targetPlanId);
+      }
 
       const suspended = await request(app)
         .patch(`/api/v1/master/barbershops/${shopId}/suspend`)
