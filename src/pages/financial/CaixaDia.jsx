@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Modal } from '../../components/ui/Modal';
 import { financialService } from '../../services/financial.service';
 import { useApp } from '../../context/AppContext';
+import { localDateInputValue } from '../../utils/date';
 
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -14,7 +15,7 @@ export default function CaixaDia() {
   const [summary, setSummary] = useState({});
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ description: '', amount: '', type: 'income', category: 'Manual', paymentMethod: 'cash', date: new Date().toISOString().slice(0, 10) });
+  const [form, setForm] = useState({ description: '', amount: '', type: 'income', category: 'Manual', paymentMethod: 'cash', date: localDateInputValue() });
 
   const load = () => Promise.all([
     financialService.getSummary(),
@@ -30,7 +31,7 @@ export default function CaixaDia() {
     try {
       await financialService.createTransaction({ ...form, amount: Number(form.amount) });
       setOpen(false);
-      setForm({ description: '', amount: '', type: 'income', category: 'Manual', paymentMethod: 'cash', date: new Date().toISOString().slice(0, 10) });
+      setForm({ description: '', amount: '', type: 'income', category: 'Manual', paymentMethod: 'cash', date: localDateInputValue() });
       await load();
       addToast('Lançamento registrado', 'success');
     } catch {

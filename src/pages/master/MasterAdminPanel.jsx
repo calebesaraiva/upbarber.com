@@ -20,6 +20,7 @@ import {
   Check,
 } from "lucide-react";
 import { unwrap } from "../../services/api";
+import { localDateInputValue } from "../../utils/date";
 import {
   getMasterBarbershopStats,
   getMasterBarbershops,
@@ -444,7 +445,7 @@ function BarbeariasSection() {
   const [plans, setPlans] = useState([]);
   const [newShop, setNewShop] = useState({
     barbershopName: "", ownerName: "", ownerEmail: "", ownerPassword: "",
-    planId: "", dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    planId: "", dueDate: localDateInputValue(new Date(Date.now() + 30 * 86400000)),
     paymentMethod: "pix", invoiceStatus: "pending", trialDays: "", phone: "", city: "", state: "",
   });
   const [inviteEmail, setInviteEmail] = useState("");
@@ -513,7 +514,7 @@ function BarbeariasSection() {
     const planId = plans[0]?.id;
     if (!planId) return;
     try {
-      await approveRegistration(shop.id, { planId, dueDate: new Date(Date.now() + 30 * 86400000).toISOString() });
+      await approveRegistration(shop.id, { planId, dueDate: localDateInputValue(new Date(Date.now() + 30 * 86400000)) });
       await loadPending();
       await load();
     } catch (e) {

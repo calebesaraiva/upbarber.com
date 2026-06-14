@@ -6,11 +6,12 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { appointmentsService } from '../../services/appointments.service';
 import { barbersService } from '../../services/barbers.service';
 import { useApp } from '../../context/AppContext';
+import { localDateInputValue } from '../../utils/date';
 
 export default function Agenda() {
   const navigate = useNavigate();
   const { addToast } = useApp();
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(localDateInputValue());
   const [items, setItems] = useState([]);
   const [barbers, setBarbers] = useState([]);
   const [barberId, setBarberId] = useState('');
@@ -37,7 +38,7 @@ export default function Agenda() {
   const move = days => {
     const d = new Date(`${date}T12:00:00`);
     d.setDate(d.getDate() + days);
-    setDate(d.toISOString().slice(0, 10));
+    setDate(localDateInputValue(d));
   };
 
   const finish = async id => {

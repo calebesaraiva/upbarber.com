@@ -1,3 +1,4 @@
+import { sameDateOnly } from "./time.js";
 import { AppError } from "./http.js";
 
 export function tenantId(req: Express.Request) {
@@ -20,7 +21,11 @@ export function textSearch(search: unknown, fields: string[]) {
 
 export function parseDateRange(query: Record<string, unknown>, field = "createdAt") {
   const range: Record<string, Date> = {};
-  if (typeof query.startDate === "string") range.gte = new Date(query.startDate);
-  if (typeof query.endDate === "string") range.lte = new Date(query.endDate);
+  if (typeof query.startDate === "string") range.gte = sameDateOnly(query.startDate);
+  if (typeof query.endDate === "string") {
+    const end = sameDateOnly(query.endDate);
+    end.setHours(23, 59, 59, 999);
+    range.lte = end;
+  }
   return Object.keys(range).length ? { [field]: range } : {};
 }

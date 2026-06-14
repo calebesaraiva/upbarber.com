@@ -6,8 +6,9 @@ import { barbersService } from '../../services/barbers.service';
 import { servicesService } from '../../services/services.service';
 import { appointmentsService } from '../../services/appointments.service';
 import { useApp } from '../../context/AppContext';
+import { localDateInputValue } from '../../utils/date';
 
-const today = new Date().toISOString().slice(0, 10);
+const today = localDateInputValue();
 
 export default function NovoAgendamento() {
   const navigate = useNavigate();
