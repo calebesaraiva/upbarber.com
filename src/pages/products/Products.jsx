@@ -130,8 +130,8 @@ export default function Products() {
                     </div>
                   </td>
                   <td className="table-cell hidden sm:table-cell text-gray-400">{p.category}</td>
-                  <td className="table-cell text-right font-semibold text-emerald-400">R${p.salePrice}</td>
-                  <td className="table-cell text-right hidden md:table-cell text-gray-500">R${p.costPrice}</td>
+                  <td className="table-cell text-right font-semibold text-emerald-400">{Number(p.salePrice||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                  <td className="table-cell text-right hidden md:table-cell text-gray-500">{Number(p.costPrice||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
                   <td className="table-cell text-center">
                     <span className={`font-bold text-sm ${p.stock===0?'text-red-400':p.stock<=p.minStock?'text-yellow-400':'text-white'}`}>{p.stock}</span>
                     <span className="text-xs text-gray-600">/{p.minStock}</span>
