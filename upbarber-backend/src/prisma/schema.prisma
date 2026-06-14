@@ -1,0 +1,864 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  barber
+  receptionist
+  saas_admin
+}
+
+enum SubscriptionStatus {
+  active
+  trial
+  suspended
+  cancelled
+  overdue
+}
+
+enum ServiceCategory {
+  Corte
+  Barba
+  Combo
+  Estetica
+  Coloracao
+  Tratamento
+  Outro
+}
+
+enum BillingCycle {
+  monthly
+  quarterly
+  yearly
+}
+
+enum PaymentMethod {
+  pix
+  cash
+  credit
+  debit
+  boleto
+  subscription
+  courtesy
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+enum AppointmentStatus {
+  scheduled
+  confirmed
+  in_progress
+  completed
+  cancelled
+  no_show
+}
+
+enum ProductCategory {
+  Cabelo
+  Barba
+  Ferramentas
+  Bebidas
+  Alimentacao
+  Outro
+}
+
+enum StockMovementType {
+  in
+  out
+  adjustment
+}
+
+enum StockReason {
+  purchase
+  sale
+  adjustment
+  loss
+  return
+}
+
+enum OrderStatus {
+  open
+  closed
+  cancelled
+}
+
+enum TransactionType {
+  income
+  expense
+}
+
+enum FinancialCategory {
+  Servico
+  Produto
+  Assinatura
+  Comissao
+  Aluguel
+  Estoque
+  Outro
+}
+
+enum TransactionStatus {
+  completed
+  pending
+  cancelled
+}
+
+enum WhatsAppStatus {
+  disconnected
+  connecting
+  connected
+}
+
+enum AutoMessageTrigger {
+  appointment_created
+  appointment_reminder_24h
+  appointment_reminder_1h
+  birthday
+  inactive_client
+  subscription_overdue
+  subscription_due_soon
+}
+
+enum CampaignAudience {
+  all
+  subscribers
+  common
+  inactive
+  overdue
+}
+
+enum CampaignStatus {
+  draft
+  scheduled
+  sending
+  completed
+  cancelled
+}
+
+enum NotificationType {
+  warning
+  info
+  success
+  alert
+}
+
+model SaasPlan {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  slug        String?      @unique
+  price       Decimal      @db.Decimal(10, 2)
+  annualPrice Decimal      @default(0) @db.Decimal(10, 2)
+  color       String       @default("#6B7280")
+  icon        String       @default("bolt")
+  features    Json
+  maxFiliais  Int         @default(1)
+  maxBarbers  Int?
+  maxClients  Int?
+  storageGb   Int         @default(1)
+  isActive    Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
+  barbershops Barbershop[]
+  barbershopSubscriptions Barbershop[] @relation("BarbershopPlan")
+  featureFlags PlanFeatureFlag[]
+}
+
+model Barbershop {
+  id                 String             @id @default(cuid())
+  name               String
+  phone              String?
+  whatsapp           String?
+  email              String?
+  address            String?
+  city               String?
+  state              String?
+  logoUrl            String?
+  intervalMinutes    Int                @default(30)
+  saasPlansId        String?
+  saasPlan           SaasPlan?          @relation(fields: [saasPlansId], references: [id])
+  saasPlanId         String?
+  masterSaasPlan     SaasPlan?          @relation("BarbershopPlan", fields: [saasPlanId], references: [id])
+  saasStatus         String             @default("trial")
+  trialEndsAt        DateTime?
+  suspendedAt        DateTime?
+  subscriptionStatus SubscriptionStatus @default(trial)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  users                User[]
+  barbers              Barber[]
+  services             Service[]
+  servicePackages      ServicePackage[]
+  subscriptionPlans    SubscriptionPlan[]
+  clients              Client[]
+  clientSubscriptions  ClientSubscription[]
+  subscriptionPayments SubscriptionPayment[]
+  appointments         Appointment[]
+  products             Product[]
+  stockMovements       StockMovement[]
+  orders               Order[]
+  financialTransactions FinancialTransaction[]
+  whatsappConnection   WhatsAppConnection?
+  autoMessages         AutoMessage[]
+  whatsappFlows        WhatsAppFlow[]
+  whatsappCampaigns    WhatsAppCampaign[]
+  notifications        Notification[]
+  hours                BarbershopHour[]
+  paymentMethods       BarbershopPaymentMethods?
+  branches             Branch[]
+  cashRegisters        CashRegister[]
+  auditLogs            AuditLog[]
+  accessGroups         AccessGroup[]
+  banners              Banner[]
+  clubBenefits         ClubBenefit[]
+  promotions           Promotion[]
+  subscriptionPipeline SubscriptionPipeline[]
+  commissionReports    CommissionReport[]
+  invoices             SaasInvoice[]
+  tickets              SupportTicket[]
+}
+
+model BarbershopHour {
+  id           String     @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  day          Int
+  isOpen       Boolean    @default(true)
+  openTime     String
+  closeTime    String
+
+  @@unique([barbershopId, day])
+}
+
+model BarbershopPaymentMethods {
+  id           String     @id @default(cuid())
+  barbershopId String     @unique
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  pix          Boolean    @default(true)
+  cash         Boolean    @default(true)
+  credit       Boolean    @default(true)
+  debit        Boolean    @default(true)
+  subscription Boolean    @default(true)
+}
+
+model User {
+  id            String      @id @default(cuid())
+  barbershopId  String?
+  barbershop    Barbershop? @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name          String
+  email         String      @unique
+  passwordHash  String
+  role          UserRole    @default(admin)
+  isActive      Boolean     @default(true)
+  refreshToken  String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime    @default(now())
+  barber        Barber?
+  stockMovements StockMovement[]
+  notifications Notification[]
+  openedCashRegisters CashRegister[]
+  auditLogs AuditLog[]
+  accessGroups AccessGroup[]
+}
+
+model Barber {
+  id                String          @id @default(cuid())
+  barbershopId      String
+  barbershop        Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  userId            String?         @unique
+  user              User?           @relation(fields: [userId], references: [id])
+  name              String
+  phone             String?
+  email             String?
+  specialty         String?
+  commissionPercent Decimal         @default(0) @db.Decimal(5, 2)
+  avatarUrl         String?
+  rating            Decimal         @default(5.0) @db.Decimal(3, 2)
+  totalCuts         Int             @default(0)
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  branchId          String?
+  branch            Branch?         @relation(fields: [branchId], references: [id])
+  services          BarberService[]
+  appointments      Appointment[]
+  orders            Order[]
+  financialTransactions FinancialTransaction[]
+  commissionReports CommissionReport[]
+}
+
+model BarberService {
+  id        String  @id @default(cuid())
+  barberId  String
+  barber    Barber  @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([barberId, serviceId])
+}
+
+model Service {
+  id                String          @id @default(cuid())
+  barbershopId      String
+  barbershop        Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  price             Decimal         @db.Decimal(10, 2)
+  durationMinutes   Int
+  commissionPercent Decimal         @default(0) @db.Decimal(5, 2)
+  category          ServiceCategory @default(Outro)
+  isActive          Boolean         @default(true)
+  soldCount         Int             @default(0)
+  createdAt         DateTime        @default(now())
+  barbers           BarberService[]
+  packageItems      PackageItem[]
+  planServices      PlanService[]
+  appointments      Appointment[]
+}
+
+model ServicePackage {
+  id           String        @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  price        Decimal       @db.Decimal(10, 2)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  items        PackageItem[]
+}
+
+model PackageItem {
+  id        String         @id @default(cuid())
+  packageId String
+  package   ServicePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, serviceId])
+}
+
+model SubscriptionPlan {
+  id            String               @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop           @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  price         Decimal              @db.Decimal(10, 2)
+  billingCycle  BillingCycle         @default(monthly)
+  usageLimit    Int?
+  color         String?
+  isActive      Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  planServices  PlanService[]
+  subscriptions ClientSubscription[]
+  subscriptionPipeline SubscriptionPipeline[]
+}
+
+model PlanService {
+  id        String           @id @default(cuid())
+  planId    String
+  plan      SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, serviceId])
+}
+
+model Client {
+  id            String       @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String?
+  email         String?
+  birthdate     DateTime?
+  notes         String?
+  avatarUrl     String?
+  totalSpent    Decimal      @default(0) @db.Decimal(12, 2)
+  totalVisits   Int          @default(0)
+  lastVisitAt   DateTime?
+  tags          Json         @default("[]")
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  subscriptions ClientSubscription[]
+  payments      SubscriptionPayment[]
+  appointments  Appointment[]
+  orders        Order[]
+  subscriptionPipeline SubscriptionPipeline[]
+}
+
+model ClientSubscription {
+  id                 String               @id @default(cuid())
+  clientId           String
+  client             Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               SubscriptionPlan     @relation(fields: [planId], references: [id])
+  barbershopId       String
+  barbershop         Barbershop           @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  status             SubscriptionStatus   @default(active)
+  paymentMethod      PaymentMethod
+  price              Decimal              @db.Decimal(10, 2)
+  usedThisCycle      Int                  @default(0)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelledAt        DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  payments           SubscriptionPayment[]
+  appointments       Appointment[]
+}
+
+model SubscriptionPayment {
+  id                String             @id @default(cuid())
+  subscriptionId    String
+  subscription      ClientSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  clientId          String
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  barbershopId      String
+  barbershop        Barbershop         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  amount            Decimal            @db.Decimal(10, 2)
+  status            PaymentStatus      @default(pending)
+  paymentMethod     PaymentMethod
+  paidAt            DateTime?
+  dueDate           DateTime
+  externalPaymentId String?
+  receiptUrl        String?
+  createdAt         DateTime           @default(now())
+  financialTransactions FinancialTransaction[]
+}
+
+model Appointment {
+  id              String             @id @default(cuid())
+  barbershopId    String
+  barbershop      Barbershop         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId        String?
+  branch          Branch?            @relation(fields: [branchId], references: [id])
+  clientId        String
+  client          Client             @relation(fields: [clientId], references: [id])
+  barberId        String
+  barber          Barber             @relation(fields: [barberId], references: [id])
+  serviceId       String
+  service         Service            @relation(fields: [serviceId], references: [id])
+  subscriptionId  String?
+  subscription    ClientSubscription? @relation(fields: [subscriptionId], references: [id])
+  date            DateTime
+  startTime       String
+  endTime         String
+  durationMinutes Int
+  price           Decimal            @db.Decimal(10, 2)
+  status          AppointmentStatus  @default(scheduled)
+  paymentMethod   PaymentMethod
+  isSubscriber    Boolean            @default(false)
+  notes           String?
+  cancelReason    String?
+  completedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  financialTransactions FinancialTransaction[]
+}
+
+model Product {
+  id           String          @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  category     ProductCategory @default(Outro)
+  salePrice    Decimal         @db.Decimal(10, 2)
+  costPrice    Decimal         @db.Decimal(10, 2)
+  stock        Int             @default(0)
+  minStock     Int             @default(0)
+  internalCode String?
+  isActive     Boolean         @default(true)
+  soldCount    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  stockMovements StockMovement[]
+  orderItems   OrderItem[]
+}
+
+model StockMovement {
+  id           String            @id @default(cuid())
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id])
+  barbershopId String
+  barbershop   Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  type         StockMovementType
+  quantity     Int
+  reason       StockReason
+  referenceId  String?
+  notes        String?
+  createdAt    DateTime          @default(now())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id])
+}
+
+model Order {
+  id            String       @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId      String?
+  branch        Branch?      @relation(fields: [branchId], references: [id])
+  clientId      String?
+  client        Client?      @relation(fields: [clientId], references: [id])
+  barberId      String?
+  barber        Barber?      @relation(fields: [barberId], references: [id])
+  status        OrderStatus  @default(open)
+  total         Decimal      @default(0) @db.Decimal(10, 2)
+  paymentMethod PaymentMethod?
+  notes         String?
+  closedAt      DateTime?
+  createdAt     DateTime     @default(now())
+  items         OrderItem[]
+  financialTransactions FinancialTransaction[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+}
+
+model FinancialTransaction {
+  id                    String             @id @default(cuid())
+  barbershopId           String
+  barbershop             Barbershop         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId               String?
+  branch                 Branch?            @relation(fields: [branchId], references: [id])
+  type                  TransactionType
+  category              FinancialCategory
+  description           String
+  amount                Decimal            @db.Decimal(12, 2)
+  paymentMethod         PaymentMethod?
+  barberId              String?
+  barber                Barber?            @relation(fields: [barberId], references: [id])
+  appointmentId         String?
+  appointment           Appointment?       @relation(fields: [appointmentId], references: [id])
+  orderId               String?
+  order                 Order?             @relation(fields: [orderId], references: [id])
+  subscriptionPaymentId String?
+  subscriptionPayment   SubscriptionPayment? @relation(fields: [subscriptionPaymentId], references: [id])
+  date                  DateTime
+  status                TransactionStatus  @default(completed)
+  notes                 String?
+  createdAt             DateTime           @default(now())
+}
+
+model WhatsAppConnection {
+  id           String         @id @default(cuid())
+  barbershopId String         @unique
+  barbershop   Barbershop     @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  phoneNumber  String?
+  status       WhatsAppStatus @default(disconnected)
+  qrCode       String?
+  sessionData  Json?
+  connectedAt  DateTime?
+  updatedAt    DateTime       @updatedAt
+}
+
+model AutoMessage {
+  id           String             @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name         String
+  trigger      AutoMessageTrigger
+  template     String
+  isActive     Boolean            @default(true)
+  sentCount    Int                @default(0)
+  createdAt    DateTime           @default(now())
+}
+
+model WhatsAppFlow {
+  id              String     @id @default(cuid())
+  barbershopId    String
+  barbershop      Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name            String
+  triggerKeywords Json
+  steps           Json
+  isActive        Boolean    @default(true)
+  sentCount       Int        @default(0)
+  createdAt       DateTime   @default(now())
+}
+
+model WhatsAppCampaign {
+  id           String           @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop       @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name         String
+  message      String
+  audience     CampaignAudience
+  status       CampaignStatus   @default(draft)
+  scheduledAt  DateTime?
+  sentCount    Int              @default(0)
+  readCount    Int              @default(0)
+  clickCount   Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop       @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  userId        String?
+  user          User?            @relation(fields: [userId], references: [id])
+  type          NotificationType
+  title         String
+  message       String
+  isRead        Boolean          @default(false)
+  relatedEntity String?
+  relatedId     String?
+  createdAt     DateTime         @default(now())
+}
+
+model Branch {
+  id            String          @id @default(uuid())
+  barbershopId  String
+  barbershop    Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name          String
+  address       String
+  neighborhood  String?
+  city          String
+  state         String
+  zipCode       String?
+  phone         String?
+  isMain        Boolean         @default(false)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  barbers       Barber[]
+  appointments  Appointment[]
+  orders        Order[]
+  financialTransactions FinancialTransaction[]
+  cashRegisters CashRegister[]
+  auditLogs     AuditLog[]
+}
+
+model CashRegister {
+  id             String     @id @default(uuid())
+  barbershopId   String
+  barbershop     Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId       String
+  branch         Branch     @relation(fields: [branchId], references: [id])
+  openedById     String
+  openedBy       User       @relation(fields: [openedById], references: [id])
+  openingBalance Decimal    @default(0) @db.Decimal(12, 2)
+  closingBalance Decimal?   @db.Decimal(12, 2)
+  totalIncome    Decimal    @default(0) @db.Decimal(12, 2)
+  totalExpense   Decimal    @default(0) @db.Decimal(12, 2)
+  status         String     @default("open")
+  openedAt       DateTime   @default(now())
+  closedAt       DateTime?
+  notes          String?
+}
+
+model AuditLog {
+  id           String     @id @default(uuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  branchId     String?
+  branch       Branch?    @relation(fields: [branchId], references: [id])
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  module       String
+  action       String
+  entityType   String?
+  entityId     String?
+  ipAddress    String?
+  metadata     Json?
+  createdAt    DateTime   @default(now())
+}
+
+model AccessGroup {
+  id           String     @id @default(uuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name         String
+  color        String     @default("#6B7280")
+  description  String?
+  permissions  Json
+  isDefault    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  users        User[]
+}
+
+model Banner {
+  id           String     @id @default(uuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  title        String
+  imageUrl     String?
+  linkUrl      String?
+  startsAt     DateTime
+  endsAt       DateTime
+  isActive     Boolean    @default(true)
+  viewCount    Int        @default(0)
+  clickCount   Int        @default(0)
+  createdAt    DateTime   @default(now())
+}
+
+model ClubBenefit {
+  id           String     @id @default(uuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name         String
+  description  String
+  type         String
+  value        String
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+}
+
+model Promotion {
+  id            String     @id @default(uuid())
+  barbershopId  String
+  barbershop    Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name          String
+  discountType  String
+  discountValue Decimal    @db.Decimal(10, 2)
+  serviceIds    Json
+  daysOfWeek    Json
+  startsAt      DateTime?
+  endsAt        DateTime?
+  isActive      Boolean    @default(true)
+  useCount      Int        @default(0)
+  createdAt     DateTime   @default(now())
+}
+
+model SubscriptionPipeline {
+  id            String           @id @default(uuid())
+  barbershopId  String
+  barbershop    Barbershop       @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        Client           @relation(fields: [clientId], references: [id])
+  planId        String
+  plan          SubscriptionPlan @relation(fields: [planId], references: [id])
+  stage         String
+  reason        String?
+  interestLevel String?
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model CommissionReport {
+  id                String     @id @default(uuid())
+  barbershopId      String
+  barbershop        Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barberId          String
+  barber            Barber     @relation(fields: [barberId], references: [id])
+  period            String
+  serviceCount      Int        @default(0)
+  serviceRevenue    Decimal    @default(0) @db.Decimal(12, 2)
+  serviceCommission Decimal    @default(0) @db.Decimal(12, 2)
+  productCount      Int        @default(0)
+  productRevenue    Decimal    @default(0) @db.Decimal(12, 2)
+  productCommission Decimal    @default(0) @db.Decimal(12, 2)
+  totalCommission   Decimal    @default(0) @db.Decimal(12, 2)
+  isPaid            Boolean    @default(false)
+  paidAt            DateTime?
+  createdAt         DateTime   @default(now())
+}
+
+model MasterAdmin {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  passwordHash String
+  name         String
+  role         String          @default("master")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  tickets      SupportTicket[]
+}
+
+model FeatureFlag {
+  id          String            @id @default(cuid())
+  key         String            @unique
+  label       String
+  description String
+  createdAt   DateTime          @default(now())
+  planFlags   PlanFeatureFlag[]
+}
+
+model PlanFeatureFlag {
+  id      String      @id @default(cuid())
+  planId  String
+  flagId  String
+  enabled Boolean     @default(false)
+  plan    SaasPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  flag    FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, flagId])
+}
+
+model SaasInvoice {
+  id            String     @id @default(cuid())
+  barbershopId  String
+  amount        Decimal    @db.Decimal(10, 2)
+  status        String     @default("pending")
+  dueDate       DateTime
+  paidAt        DateTime?
+  paymentMethod String?
+  gatewayRef    String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  barbershop    Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+}
+
+model SupportTicket {
+  id           String          @id @default(cuid())
+  code         String          @unique
+  barbershopId String
+  subject      String
+  body         String
+  priority     String          @default("medium")
+  status       String          @default("open")
+  assigneeId   String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  barbershop   Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  assignee     MasterAdmin?    @relation(fields: [assigneeId], references: [id])
+  messages     TicketMessage[]
+}
+
+model TicketMessage {
+  id         String        @id @default(cuid())
+  ticketId   String
+  authorId   String
+  authorType String
+  body       String
+  createdAt  DateTime      @default(now())
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model PlatformConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model ImpersonateLog {
+  id           String   @id @default(cuid())
+  adminId      String
+  barbershopId String
+  ip           String
+  createdAt    DateTime @default(now())
+}

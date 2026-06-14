@@ -1,0 +1,35 @@
+import { api } from './api';
+
+const base = '/reports/advanced';
+
+export const reportsService = {
+  getRevenue: (p) => api.get(`${base}/financial/revenue`, { params: p }),
+  getPaymentMethods: (p) => api.get(`${base}/financial/payment-methods`, { params: p }),
+  getMovements: (p) => api.get(`${base}/financial/movements`, { params: p }),
+  getSales: (p) => api.get(`${base}/financial/sales`, { params: p }),
+  getSubscriptionChanges: (p) => api.get(`${base}/subscriptions/changes`, { params: p }),
+  getSubscriptionCancelled: (p) => api.get(`${base}/subscriptions/cancelled`, { params: p }),
+  getSubscriptionTransactions: (p) => api.get(`${base}/subscriptions/transactions`, { params: p }),
+  getSubscriptionCount: (p) => api.get(`${base}/subscriptions/count`, { params: p }),
+  getSubscriptionNewSales: (p) => api.get(`${base}/subscriptions/new-sales`, { params: p }),
+  getSubscriptionByOrigin: (p) => api.get(`${base}/subscriptions/by-origin`, { params: p }),
+  getClientFrequency: (p) => api.get(`${base}/clients/frequency`, { params: p }),
+  getClientAppointments: (p) => api.get(`${base}/clients/appointments`, { params: p }),
+  getClientProductPurchases: (p) => api.get(`${base}/clients/product-purchases`, { params: p }),
+  getClientsByService: (p) => api.get(`${base}/clients/by-service`, { params: p }),
+  getClientsByPeriodService: (p) => api.get(`${base}/clients/by-period-service`, { params: p }),
+  getBirthdays: (p) => api.get(`${base}/marketing/birthdays`, { params: p }),
+  getRatings: (p) => api.get(`${base}/marketing/ratings`, { params: p }),
+  getAcquisition: (p) => api.get(`${base}/marketing/acquisition`, { params: p }),
+  getInactiveClients: (p) => api.get(`${base}/marketing/inactive`, { params: p }),
+  getNoPreference: (p) => api.get(`${base}/marketing/no-preference`, { params: p }),
+  getWaitlist: (p) => api.get(`${base}/marketing/waitlist`, { params: p }),
+  getNewClients: (p) => api.get(`${base}/marketing/new-clients`, { params: p }),
+  getProductCommissions: (p) => api.get(`${base}/professional/product-commissions`, { params: p }),
+  getServiceCommissions: (p) => api.get(`${base}/professional/service-commissions`, { params: p }),
+  getDocuments: (p) => api.get(`${base}/professional/documents`, { params: p }),
+  getAvgTicketClient: (p) => api.get(`${base}/professional/avg-ticket-client`, { params: p }),
+  getAvgTicketService: (p) => api.get(`${base}/professional/avg-ticket-service`, { params: p }),
+  exportCsv: (type, params) => api.get(`${base}/${type}`, { params: { ...params, format:'csv' }, responseType:'blob' }),
+  exportPdf: (type, params) => api.get(`${base}/${type}`, { params: { ...params, format:'pdf' }, responseType:'blob' }),
+};

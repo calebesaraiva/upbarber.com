@@ -1,0 +1,6 @@
+import { useEffect, useState } from 'react';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { subscriptionsService } from '../../services/subscriptions.service';
+import { useApp } from '../../context/AppContext';
+
+export default function SubscriptionControl(){const{addToast}=useApp();const[items,setItems]=useState([]);const load=()=>subscriptionsService.list({limit:100}).then(r=>setItems(r.data.data?.data||[]));useEffect(load,[]);const renew=async id=>{await subscriptionsService.renew(id);await load();addToast('Assinatura renovada','success')};const cancel=async id=>{await subscriptionsService.cancel(id);await load();addToast('Assinatura cancelada','success')};return <div><PageHeader title="Controle de Assinaturas" subtitle="Operações reais"/><div className="card p-0">{items.map(x=><div key={x.id} className="flex gap-2 p-4 border-b border-dark-400"><div className="flex-1"><p className="text-white">{x.client?.name}</p><p className="text-xs text-gray-500">{x.plan?.name} · {x.status}</p></div><button className="btn-secondary" onClick={()=>renew(x.id)}>Renovar</button><button className="btn-secondary text-red-400" onClick={()=>cancel(x.id)}>Cancelar</button></div>)}</div></div>}
