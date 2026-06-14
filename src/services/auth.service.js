@@ -9,5 +9,6 @@ export const authService = {
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
   verifyEmail: (data) => api.post('/auth/verify-email', data),
+  verifyEmailLink: (token) => api.get('/auth/verify-email-link', { params: { token } }),
   me: () => api.get('/auth/me'),
 };

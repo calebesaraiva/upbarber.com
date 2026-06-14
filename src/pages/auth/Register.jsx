@@ -160,7 +160,7 @@ export default function Register() {
           )}
           {submitted && step === 3 && <div>
             <h2 className="text-xl font-bold text-white mb-2">Verifique seu email</h2>
-            <p className="text-sm text-gray-500 mb-5">Enviamos um código para {form.email}.</p>
+            <p className="text-sm text-gray-500 mb-5">Enviamos um link de verificação e um código para {form.email}.</p>
             <input className="input" value={code} onChange={e=>setCode(e.target.value)} placeholder="Código de 6 dígitos"/>
             <button className="btn-primary w-full justify-center mt-4" onClick={verify}>{loading?'Verificando...':'Confirmar email'}</button>
             {error && <p className="text-xs text-red-400 mt-3">{error}</p>}

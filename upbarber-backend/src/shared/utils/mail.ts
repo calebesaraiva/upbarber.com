@@ -127,6 +127,16 @@ export function emailButton(label: string, href: string) {
   </table>`;
 }
 
+export function emailSecondaryButton(label: string, href: string) {
+  return `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:14px 0 4px">
+    <tr>
+      <td bgcolor="#111111" style="border-radius:14px">
+        <a href="${escapeAttribute(href)}" style="display:inline-block;padding:14px 22px;color:#FFFFFF;text-decoration:none;font-weight:800;font-size:14px;line-height:18px;border-radius:14px;border:1px solid #374151">${escapeHtml(label)}</a>
+      </td>
+    </tr>
+  </table>`;
+}
+
 export function emailCode(code: string) {
   return `<div style="margin:22px 0;background:#111111;border-radius:18px;padding:22px;text-align:center">
     <div style="color:#94A3B8;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.8px">Código de segurança</div>

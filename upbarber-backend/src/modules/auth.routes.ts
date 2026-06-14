@@ -8,7 +8,7 @@ import { validate } from "../shared/middleware/validate.js";
 import { authenticate, enforceTenantAccess, signAccessToken, signRefreshToken, type TokenPayload } from "../shared/middleware/auth.js";
 import { env } from "../shared/env.js";
 import { AppError, created, ok } from "../shared/utils/http.js";
-import { emailCode, emailLayout, emailParagraph, sendMail } from "../shared/utils/mail.js";
+import { emailButton, emailCode, emailLayout, emailParagraph, emailSecondaryButton, sendMail } from "../shared/utils/mail.js";
 
 const router = Router();
 
@@ -81,7 +81,7 @@ router.post("/register", validate({ body: registerSchema }), async (req, res) =>
     return { barbershop, user };
   });
 
-  await issueCode(result.user.id, "verify_email", email);
+  await issueEmailVerification(result.user.id, email);
   return created(res, { barbershop: result.barbershop, user: { ...result.user, passwordHash: undefined }, status: "pending_approval" });
 });
 
@@ -154,6 +154,24 @@ router.post("/verify-email", validate({ body: z.object({ email: z.string().email
   return ok(res, { message: "Email verificado. Aguarde a aprovação do cadastro." });
 });
 
+router.get("/verify-email-link", validate({ query: z.object({ token: z.string().min(16) }) }), async (req, res) => {
+  const token = String(req.query.token);
+  const item = await prisma.authCode.findFirst({
+    where: {
+      purpose: "verify_email_link",
+      codeHash: hash(token),
+      consumedAt: null,
+      expiresAt: { gt: new Date() }
+    },
+    include: { user: true },
+    orderBy: { createdAt: "desc" }
+  });
+  if (!item) throw new AppError(400, "INVALID_CODE", "Link de verificação inválido ou expirado");
+  await prisma.authCode.update({ where: { id: item.id }, data: { consumedAt: new Date() } });
+  await prisma.user.update({ where: { id: item.userId }, data: { emailVerifiedAt: new Date() } });
+  return ok(res, { message: "Email verificado com sucesso. Aguarde a aprovação do cadastro." });
+});
+
 router.get("/me", authenticate, enforceTenantAccess, async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, include: { barbershop: true } });
   if (!user) throw new AppError(404, "USER_NOT_FOUND", "Usuário não encontrado");
@@ -184,6 +202,38 @@ async function issueCode(userId: string, purpose: string, email: string) {
         preheader: isReset ? "Use seu código para redefinir a senha no UpBarber." : "Use seu código para confirmar o cadastro no UpBarber.",
         footerNote: "Nunca compartilhe este código com terceiros. A equipe UpBarber não solicita sua senha por email.",
         tone: isReset ? "blue" : "gold"
+      }
+    )
+  );
+}
+
+async function issueEmailVerification(userId: string, email: string) {
+  const code = String(crypto.randomInt(100000, 1000000));
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await prisma.$transaction([
+    prisma.authCode.create({ data: { userId, purpose: "verify_email", codeHash: hash(code), expiresAt } }),
+    prisma.authCode.create({ data: { userId, purpose: "verify_email_link", codeHash: hash(token), expiresAt } })
+  ]);
+
+  const verifyUrl = `${env.APP_URL.replace(/\/$/, "")}/verificar-email?token=${encodeURIComponent(token)}`;
+
+  await sendMail(
+    email,
+    "Confirme seu email para acessar o UpBarber",
+    emailLayout(
+      "Seu acesso está quase pronto",
+      `${emailParagraph("Confirme seu e-mail com um clique para liberar o próximo passo do cadastro. Se preferir, use o código de segurança como alternativa.")}
+      ${emailButton("Verificar email agora", verifyUrl)}
+      ${emailSecondaryButton("Abrir o link de verificação", verifyUrl)}
+      ${emailCode(code)}
+      ${emailParagraph("Esse link e o código expiram em 24 horas. Depois da confirmação, o cadastro segue para análise no painel master.")}`,
+      {
+        eyebrow: "Confirmação de e-mail",
+        preheader: "Clique para verificar seu e-mail no UpBarber.",
+        footerNote: "Se você não criou este cadastro, apenas ignore este e-mail.",
+        tone: "gold"
       }
     )
   );

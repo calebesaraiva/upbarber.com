@@ -8,6 +8,7 @@ import { Layout } from './components/layout/Layout';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ForgotPassword from './pages/auth/ForgotPassword';
+import VerifyEmail from './pages/auth/VerifyEmail';
 
 // Main
 import Dashboard from './pages/Dashboard';
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/cadastro" element={<Register />} />
           <Route path="/recuperar-senha" element={<ForgotPassword />} />
+          <Route path="/verificar-email" element={<VerifyEmail />} />
 
           {/* App */}
           <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
