@@ -14,12 +14,12 @@ export default function BarberForm() {
   const [form, setForm] = useState({ name:'', phone:'', email:'', specialty:'', commissionPercent:40, serviceIds:[], isActive:true });
   const upd = k => e => setForm({...form,[k]:e.target.value});
   useEffect(() => {
-    servicesService.list().then(res => setServices(res.data.data?.data || res.data.data || []));
+    servicesService.list().then(res => setServices(res.data.data?.data || res.data.data || [])).catch(() => {});
     if (id) barbersService.getById(id).then(res => {
       const value = res.data.data;
       setExisting(value);
-      setForm({ ...value, serviceIds:(value.services || []).map(x=>x.serviceId) });
-    });
+      setForm({ ...value, serviceIds: (value.services || []).map(x => x.serviceId) });
+    }).catch(() => {});
   }, [id]);
 
   const toggleService = sid => {

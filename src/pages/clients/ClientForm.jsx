@@ -14,7 +14,7 @@ export default function ClientForm() {
   const [form, setForm] = useState({ name:'', phone:'', email:'', birthdate:'', planId:'', notes:'' });
   const upd = k => e => setForm({...form,[k]:e.target.value});
   useEffect(() => {
-    subscriptionsService.listPlans().then(res=>setPlans(res.data.data || []));
+    subscriptionsService.listPlans().then(res=>setPlans(res.data.data?.data || res.data.data || []));
     if (id) clientsService.getById(id).then(res => {
       const value = res.data.data.client;
       setExisting(value);
