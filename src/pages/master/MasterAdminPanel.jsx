@@ -14,7 +14,7 @@ import {
   Headphones, Settings, LogOut, LogIn, Ban, CheckCircle,
   AlertTriangle, TrendingUp, TrendingDown, Users, DollarSign,
   RefreshCw, Download, Plus, Edit2, Trash2, Search,
-  ChevronDown, X, Eye, Mail,
+  ChevronDown, X, Eye, Mail, Menu,
   Shield, Star, Bell, Clock,
   FileText, ToggleLeft, ToggleRight, Send, MessageSquare,
   Check,
@@ -272,7 +272,7 @@ function DashboardSection() {
       </div>
 
       {mrrHistory.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 20 }}>
           <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, padding: 20 }}>
             <h3 style={{ color: P.text, fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Evolução do MRR</h3>
             <ResponsiveContainer width="100%" height={220}>
@@ -695,7 +695,7 @@ function BarbeariasSection() {
       </div>
 
       <Modal open={modal === "create"} onClose={() => setModal(null)} title="Nova barbearia" width={680}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
           {[
             ["barbershopName", "Nome da barbearia", "text"],
             ["ownerName", "Nome do proprietário", "text"],
@@ -737,7 +737,7 @@ function BarbeariasSection() {
       <Modal open={modal === "detail" && !!selected} onClose={() => setModal(null)} title={selected?.name} width={640}>
         {selected && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
               {[
                 ["Proprietário", selected.ownerName],
                 ["Email", selected.email],
@@ -787,7 +787,7 @@ function BarbeariasSection() {
       <Modal open={modal === "charge" && !!selected} onClose={() => setModal(null)} title="Realizar Cobrança Manual">
         {selected && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
               <Input label="Valor (R$)" value={selected.mrr} readOnly />
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label style={{ color: P.muted, fontSize: 13 }}>Método</label>
@@ -1033,7 +1033,7 @@ function PlanosSection() {
               </div>
             </div>
 
-            <div style={{ background: P.surface, borderRadius: 10, padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div style={{ background: P.surface, borderRadius: 10, padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8 }}>
               {[
                 ["Filiais", plan.maxFiliais ?? "∞"],
                 ["Barbeiros", plan.maxBarbers ?? "∞"],
@@ -1071,7 +1071,7 @@ function PlanosSection() {
 
       <Modal open={editModal} onClose={() => setEditModal(false)} title={isNew ? "Novo Plano" : `Editar Plano — ${editData.name}`} width={620}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
             <Input label="Nome do plano" value={editData.name || ""} onChange={e => setEditData({ ...editData, name: e.target.value })} placeholder="Ex: Pro" />
             <Input label="Slug (URL)" value={editData.slug || ""} onChange={e => setEditData({ ...editData, slug: e.target.value })} placeholder="ex: pro" />
             <Input label="Preço mensal (R$)" type="number" value={editData.price || ""} onChange={e => setEditData({ ...editData, price: e.target.value })} />
@@ -1170,7 +1170,7 @@ function RelatoriosSection() {
       </div>
 
       {(churnData.length > 0 || revenueByPlan.length > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 20 }}>
           {churnData.length > 0 && (
             <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, padding: 20 }}>
               <h3 style={{ color: P.text, fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Churn Rate Mensal (%)</h3>
@@ -1367,7 +1367,7 @@ function SuporteSection() {
               <div style={{ color: P.muted, fontSize: 12, marginBottom: 6 }}>Assunto</div>
               <div style={{ color: P.text, fontSize: 14 }}>{selected.subject}</div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
               <div><div style={{ color: P.muted, fontSize: 12 }}>Prioridade</div><StatusBadge status={selected.priority} /></div>
               <div><div style={{ color: P.muted, fontSize: 12 }}>Status</div><StatusBadge status={selected.status} /></div>
               <div><div style={{ color: P.muted, fontSize: 12 }}>Atendente</div><div style={{ color: P.text, fontSize: 13, marginTop: 4 }}>{selected.assigneeName ?? "—"}</div></div>
@@ -1547,7 +1547,7 @@ function ConfigSection() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <Section title="Conta Master">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14, marginBottom: 14 }}>
           <Input label="E-mail atual" value={masterProfile?.email ?? ""} disabled />
           <Input label="Nome do acesso" value={masterProfile?.name ?? "Admin Master"} disabled />
         </div>
@@ -1558,7 +1558,7 @@ function ConfigSection() {
         </div>
 
         {masterTab === "email" ? (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
             <Input label="Senha atual" type="password" value={masterForm.currentPassword} onChange={e => updMaster("currentPassword", e.target.value)} placeholder="Digite sua senha atual" />
             <Input label="Novo e-mail" type="email" value={masterForm.newEmail} onChange={e => updMaster("newEmail", e.target.value)} placeholder="novo@email.com" />
             <Input label="Código de confirmação" value={masterForm.emailCode} onChange={e => updMaster("emailCode", e.target.value)} placeholder="6 dígitos" />
@@ -1568,7 +1568,7 @@ function ConfigSection() {
             </div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
             <Input label="Senha atual" type="password" value={masterForm.currentPassword} onChange={e => updMaster("currentPassword", e.target.value)} placeholder="Digite sua senha atual" />
             <Input label="Nova senha" type="password" value={masterForm.newPassword} onChange={e => updMaster("newPassword", e.target.value)} placeholder="Digite a nova senha" />
             <Input label="Confirmar nova senha" type="password" value={masterForm.confirmPassword} onChange={e => updMaster("confirmPassword", e.target.value)} placeholder="Repita a nova senha" />
@@ -1603,7 +1603,7 @@ function ConfigSection() {
 
       {/* SMTP */}
       <Section title="Configurações de Email (SMTP)">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
           <Input label="Host SMTP" value={config.smtp_host ?? ""} onChange={e => upd("smtp_host", e.target.value)} placeholder="smtp.sendgrid.net" />
           <Input label="Porta" value={config.smtp_port ?? ""} onChange={e => upd("smtp_port", e.target.value)} placeholder="587" />
           <Input label="Usuário" value={config.smtp_user ?? ""} onChange={e => upd("smtp_user", e.target.value)} placeholder="apikey" />
@@ -1618,7 +1618,7 @@ function ConfigSection() {
 
       {/* Gateway */}
       <Section title="Gateway de Pagamento">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ color: P.muted, fontSize: 13 }}>Provedor</label>
             <select value={config.payment_gateway ?? "stripe"} onChange={e => upd("payment_gateway", e.target.value)} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 14px", color: P.text, fontSize: 14 }}>
@@ -1680,7 +1680,7 @@ function ConfigSection() {
 
       {/* Platform Info */}
       <Section title="Informações da Plataforma">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
           <Input label="Nome da plataforma" value={config.platform_name ?? ""} onChange={e => upd("platform_name", e.target.value)} placeholder="UpBarber" />
           <Input label="Domínio principal" value={config.platform_domain ?? ""} onChange={e => upd("platform_domain", e.target.value)} placeholder="upbarber.com.br" />
           <Input label="Email de suporte" value={config.support_email ?? ""} onChange={e => upd("support_email", e.target.value)} placeholder="suporte@upbarber.com.br" />
@@ -1729,82 +1729,170 @@ const SECTION_TITLES = {
 export default function MasterAdminPanel() {
   const [active, setActive] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" ? window.innerWidth < 980 : false);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 980);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) setMobileMenuOpen(false);
+  }, [isMobile]);
 
   const SectionComponent = SECTION_COMPONENTS[active];
-
-  return (
-    <div style={{ display: "flex", minHeight: "100vh", background: P.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-      {/* Sidebar */}
-      <aside style={{ width: sidebarOpen ? 240 : 64, background: P.surface, borderRight: `1px solid ${P.border}`, display: "flex", flexDirection: "column", transition: "width .2s ease", flexShrink: 0, overflow: "hidden" }}>
-        <div style={{ padding: "20px 16px", borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 36, height: 36, background: P.purple, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Shield size={18} color="#fff" />
-          </div>
-          {sidebarOpen && (
-            <div>
-              <div style={{ color: P.text, fontWeight: 800, fontSize: 15 }}>{COMPANY.product}</div>
-              <div style={{ color: P.muted, fontSize: 10, marginTop: 2 }}>{COMPANY.developer}</div>
-              <div style={{ background: P.purple, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, display: "inline-block", letterSpacing: 1 }}>MASTER ADMIN</div>
-            </div>
-          )}
+  const sidebarExpanded = isMobile ? true : sidebarOpen;
+  const desktopSidebarWidth = sidebarExpanded ? 240 : 64;
+  const openMobileMenu = () => setMobileMenuOpen(true);
+  const closeMobileMenu = () => setMobileMenuOpen(false);
+  const navigate = (id) => {
+    setActive(id);
+    if (isMobile) closeMobileMenu();
+  };
+  const SidebarBody = () => (
+    <>
+      <div style={{ padding: "20px 16px", borderBottom: `1px solid ${P.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 36, height: 36, background: P.purple, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Shield size={18} color="#fff" />
         </div>
+        {sidebarExpanded && (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: P.text, fontWeight: 800, fontSize: 15, lineHeight: 1.2 }}>{COMPANY.product}</div>
+            <div style={{ color: P.muted, fontSize: 10, marginTop: 2 }}>{COMPANY.developer}</div>
+            <div style={{ background: P.purple, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, display: "inline-block", letterSpacing: 1, marginTop: 6 }}>MASTER ADMIN</div>
+          </div>
+        )}
+      </div>
 
-        <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
-          {NAV.map(({ id, label, Icon }) => (
-            <button key={id} onClick={() => setActive(id)}
-              style={{ display: "flex", alignItems: "center", gap: 12, padding: sidebarOpen ? "10px 12px" : "10px 14px", borderRadius: 8, border: "none", cursor: "pointer", width: "100%", textAlign: "left", background: active === id ? P.purple : "transparent", color: active === id ? "#fff" : P.muted, transition: "background .15s" }}>
-              <Icon size={18} style={{ flexShrink: 0 }} />
-              {sidebarOpen && <span style={{ fontSize: 14, fontWeight: active === id ? 600 : 400, whiteSpace: "nowrap" }}>{label}</span>}
-            </button>
-          ))}
-        </nav>
+      <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+        {NAV.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            onClick={() => navigate(id)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: sidebarExpanded ? "10px 12px" : "10px 14px",
+              borderRadius: 8,
+              border: "none",
+              cursor: "pointer",
+              width: "100%",
+              textAlign: "left",
+              background: active === id ? P.purple : "transparent",
+              color: active === id ? "#fff" : P.muted,
+              transition: "background .15s",
+              minHeight: 42,
+            }}
+          >
+            <Icon size={18} style={{ flexShrink: 0 }} />
+            {sidebarExpanded && <span style={{ fontSize: 14, fontWeight: active === id ? 600 : 400, whiteSpace: "nowrap" }}>{label}</span>}
+          </button>
+        ))}
+      </nav>
 
-        <div style={{ padding: "12px 8px", borderTop: `1px solid ${P.border}` }}>
-          {sidebarOpen && (
-            <div style={{ color: P.muted, fontSize: 10, lineHeight: 1.5, padding: "0 12px 10px" }}>
-              <div>Feito pela {COMPANY.developer}</div>
-              <div>CNPJ {COMPANY.cnpj}</div>
-            </div>
-          )}
-          <button onClick={() => setSidebarOpen(o => !o)}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: P.muted, cursor: "pointer", width: "100%" }}>
+      <div style={{ padding: "12px 8px", borderTop: `1px solid ${P.border}` }}>
+        {sidebarExpanded && (
+          <div style={{ color: P.muted, fontSize: 10, lineHeight: 1.5, padding: "0 12px 10px" }}>
+            <div>Feito pela {COMPANY.developer}</div>
+            <div>CNPJ {COMPANY.cnpj}</div>
+          </div>
+        )}
+        {!isMobile && (
+          <button
+            onClick={() => setSidebarOpen((o) => !o)}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: P.muted, cursor: "pointer", width: "100%" }}
+          >
             <ChevronDown size={16} style={{ transform: sidebarOpen ? "rotate(90deg)" : "rotate(-90deg)" }} />
             {sidebarOpen && <span style={{ fontSize: 13 }}>Recolher menu</span>}
           </button>
-          <button onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: P.muted, cursor: "pointer", width: "100%" }}>
-            <LogOut size={16} />
-            {sidebarOpen && <span style={{ fontSize: 13 }}>Sair</span>}
-          </button>
-        </div>
-      </aside>
+        )}
+        <button
+          onClick={() => { localStorage.clear(); window.location.href = "/login"; }}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: P.muted, cursor: "pointer", width: "100%" }}
+        >
+          <LogOut size={16} />
+          {sidebarOpen && <span style={{ fontSize: 13 }}>Sair</span>}
+        </button>
+      </div>
+    </>
+  );
 
-      {/* Main */}
+  return (
+    <div style={{ display: "flex", minHeight: "100dvh", background: P.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", overflow: "hidden" }}>
+      {!isMobile && (
+        <aside style={{ width: desktopSidebarWidth, background: P.surface, borderRight: `1px solid ${P.border}`, display: "flex", flexDirection: "column", transition: "width .2s ease", flexShrink: 0, overflow: "hidden" }}>
+          <SidebarBody />
+        </aside>
+      )}
+
+      {isMobile && mobileMenuOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "#000000b8", zIndex: 1200 }} onClick={closeMobileMenu}>
+          <aside
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(84vw, 320px)",
+              height: "100%",
+              background: P.surface,
+              borderRight: `1px solid ${P.border}`,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "18px 0 60px rgba(0,0,0,.35)",
+            }}
+          >
+            <SidebarBody />
+          </aside>
+        </div>
+      )}
+
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        <header style={{ background: P.surface, borderBottom: `1px solid ${P.border}`, padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <h1 style={{ color: P.text, fontWeight: 700, fontSize: 18, margin: 0 }}>{SECTION_TITLES[active]}</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ color: P.muted, fontSize: 11, textAlign: "right" }}>
-              <div>{COMPANY.developer}</div>
-              <div>CNPJ {COMPANY.cnpj}</div>
+        <header style={{ background: P.surface, borderBottom: `1px solid ${P.border}`, padding: isMobile ? "14px 16px" : "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexShrink: 0, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
+            {isMobile && (
+              <button
+                onClick={openMobileMenu}
+                style={{ width: 40, height: 40, borderRadius: 10, border: `1px solid ${P.border}`, background: P.card, color: P.text, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                aria-label="Abrir menu"
+              >
+                <Menu size={18} />
+              </button>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ color: P.text, fontWeight: 700, fontSize: isMobile ? 16 : 18, margin: 0, lineHeight: 1.2 }}>{SECTION_TITLES[active]}</h1>
+              <div style={{ color: P.muted, fontSize: 11, marginTop: 4 }}>NEXUS TECNOLOGIA LTDA · CNPJ {COMPANY.cnpj}</div>
             </div>
-            <div style={{ background: "#064E3B", color: P.green, fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20 }}>
-              🟢 Plataforma Online
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 32, height: 32, background: P.purple, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Shield size={16} color="#fff" />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginLeft: "auto" }}>
+            {!isMobile && (
+              <div style={{ color: P.muted, fontSize: 11, textAlign: "right" }}>
+                <div>{COMPANY.developer}</div>
+                <div>CNPJ {COMPANY.cnpj}</div>
               </div>
-              <div>
-                <div style={{ color: P.text, fontSize: 13, fontWeight: 600 }}>Admin Master</div>
-                <div style={{ color: P.muted, fontSize: 11 }}>comercial@nexustecnologialtda.com.br</div>
-              </div>
+            )}
+            <div style={{ background: "#064E3B", color: P.green, fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20, whiteSpace: "nowrap" }}>
+              Plataforma Online
             </div>
+            {!isMobile && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 32, height: 32, background: P.purple, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Shield size={16} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ color: P.text, fontSize: 13, fontWeight: 600 }}>Admin Master</div>
+                  <div style={{ color: P.muted, fontSize: 11 }}>comercial@nexustecnologialtda.com.br</div>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
         {/* key={active} forces remount (and fresh data load) on tab change */}
-        <div key={active} style={{ flex: 1, padding: 28, overflowY: "auto" }}>
+        <div key={active} style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: "auto", overflowX: "hidden" }}>
           <SectionComponent />
         </div>
       </main>

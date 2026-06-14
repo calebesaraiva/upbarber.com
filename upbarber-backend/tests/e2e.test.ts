@@ -115,6 +115,177 @@ describe("UpBarber API end-to-end", () => {
     expect((await request(app).delete(`/api/v1/users/${receptionistUser.body.data.id}`).set("Authorization", `Bearer ${userToken}`)).status).toBe(204);
   });
 
+  it("walks through a full operational flow with real appointment and sale data", async () => {
+    const unique = Date.now();
+    const serviceName = `Corte E2E ${unique}`;
+    const productName = `Pomada E2E ${unique}`;
+    const clientEmail = `client-${unique}@upbarber.test`;
+    const barberEmail = `masterbarber-${unique}@upbarber.test`;
+    const receptionistEmail = `masterreception-${unique}@upbarber.test`;
+    const password = "Fluxo@123";
+    const appointmentDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    let serviceId = "";
+    let barberId = "";
+    let productId = "";
+    let clientId = "";
+    let appointmentId = "";
+    let orderId = "";
+    let receptionistId = "";
+
+    try {
+      const service = await request(app)
+        .post("/api/v1/services")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          name: serviceName,
+          description: "Serviço criado automaticamente pelo teste ponta a ponta",
+          price: 65,
+          durationMinutes: 30,
+          commissionPercent: 40,
+          category: "Corte"
+        });
+      expect(service.status).toBe(201);
+      serviceId = service.body.data.id;
+
+      const barber = await request(app)
+        .post("/api/v1/barbers")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          name: "Barbeiro Fluxo E2E",
+          email: barberEmail,
+          phone: "11999990000",
+          specialty: "Cortes masculinos",
+          commissionPercent: 40,
+          serviceIds: [serviceId]
+        });
+      expect(barber.status).toBe(201);
+      barberId = barber.body.data.id;
+
+      const receptionist = await request(app)
+        .post("/api/v1/users")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ name: "Recepcionista Fluxo E2E", email: receptionistEmail, password, role: "receptionist" });
+      expect(receptionist.status).toBe(201);
+      receptionistId = receptionist.body.data.id;
+
+      const product = await request(app)
+        .post("/api/v1/products")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          name: productName,
+          description: "Produto criado pelo teste ponta a ponta",
+          category: "Barba",
+          salePrice: 45,
+          costPrice: 20,
+          stock: 10,
+          minStock: 2,
+          internalCode: `E2E-${unique}`
+        });
+      expect(product.status).toBe(201);
+      productId = product.body.data.id;
+
+      const client = await request(app)
+        .post("/api/v1/clients")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ name: `Cliente Fluxo ${unique}`, email: clientEmail, phone: "11988887777" });
+      expect(client.status).toBe(201);
+      clientId = client.body.data.id;
+
+      const availability = await request(app)
+        .get("/api/v1/appointments/availability")
+        .set("Authorization", `Bearer ${userToken}`)
+        .query({ barberId, date: appointmentDate, serviceId });
+      expect(availability.status).toBe(200);
+      expect(Array.isArray(availability.body.data.availableSlots)).toBe(true);
+      expect(availability.body.data.availableSlots.length).toBeGreaterThan(0);
+      const startTime = availability.body.data.availableSlots[0];
+
+      const appointment = await request(app)
+        .post("/api/v1/appointments")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          clientId,
+          barberId,
+          serviceId,
+          date: appointmentDate,
+          startTime,
+          paymentMethod: "pix",
+          notes: "Agendamento criado no teste ponta a ponta"
+        });
+      expect(appointment.status).toBe(201);
+      appointmentId = appointment.body.data.id;
+
+      const completed = await request(app)
+        .patch(`/api/v1/appointments/${appointmentId}/status`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ status: "completed" });
+      expect(completed.status).toBe(200);
+      expect(completed.body.data.status).toBe("completed");
+
+      const order = await request(app)
+        .post("/api/v1/orders")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          clientId,
+          barberId,
+          notes: "Venda criada no fluxo ponta a ponta",
+          items: [{ productId, quantity: 2 }]
+        });
+      expect(order.status).toBe(201);
+      orderId = order.body.data.id;
+      expect(Number(order.body.data.total)).toBeGreaterThan(0);
+
+      const closedOrder = await request(app)
+        .patch(`/api/v1/orders/${orderId}/close`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ paymentMethod: "pix" });
+      expect(closedOrder.status).toBe(200);
+      expect(closedOrder.body.data.status).toBe("closed");
+
+      const clientDetail = await request(app)
+        .get(`/api/v1/clients/${clientId}`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(clientDetail.status).toBe(200);
+      expect(clientDetail.body.data.appointments.length).toBeGreaterThan(0);
+      expect(clientDetail.body.data.orders.length).toBeGreaterThan(0);
+
+      const productDetail = await request(app)
+        .get(`/api/v1/products/${productId}`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(productDetail.status).toBe(200);
+      expect(Number(productDetail.body.data.stock)).toBe(8);
+
+      const financialSummary = await request(app)
+        .get("/api/v1/financial/summary")
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(financialSummary.status).toBe(200);
+      expect(Number(financialSummary.body.data.totalIncome)).toBeGreaterThan(0);
+
+      const receptionistLogin = await request(app).post("/api/v1/auth/login").send({ email: receptionistEmail, password });
+      expect(receptionistLogin.status).toBe(200);
+      const receptionistToken = receptionistLogin.body.data.accessToken;
+      expect((await request(app).get("/api/v1/products").set("Authorization", `Bearer ${receptionistToken}`)).status).toBe(200);
+      expect((await request(app).get("/api/v1/financial/summary").set("Authorization", `Bearer ${receptionistToken}`)).status).toBe(403);
+    } finally {
+      for (const cleanup of [
+        () => orderId && request(app).patch(`/api/v1/orders/${orderId}/cancel`).set("Authorization", `Bearer ${userToken}`),
+        () => appointmentId && request(app).delete(`/api/v1/appointments/${appointmentId}`).set("Authorization", `Bearer ${userToken}`).send({ cancelReason: "cleanup" }),
+        () => productId && request(app).delete(`/api/v1/products/${productId}`).set("Authorization", `Bearer ${userToken}`),
+        () => barberId && request(app).delete(`/api/v1/barbers/${barberId}`).set("Authorization", `Bearer ${userToken}`),
+        () => serviceId && request(app).delete(`/api/v1/services/${serviceId}`).set("Authorization", `Bearer ${userToken}`),
+        () => clientId && request(app).delete(`/api/v1/clients/${clientId}`).set("Authorization", `Bearer ${userToken}`),
+        () => receptionistId && request(app).delete(`/api/v1/users/${receptionistId}`).set("Authorization", `Bearer ${userToken}`),
+      ]) {
+        try {
+          const result = cleanup();
+          if (result) await result;
+        } catch {
+          // cleanup best-effort
+        }
+      }
+    }
+  });
+
   it.each([
     "/api/v1/barbershop",
     "/api/v1/barbershop/hours",
