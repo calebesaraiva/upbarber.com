@@ -12,6 +12,7 @@
     "migrate:deploy": "prisma migrate deploy --schema=src/prisma/schema.prisma",
     "seed": "tsx src/prisma/seed.ts",
     "seed:master": "tsx src/prisma/seed-master.ts",
+    "seed:demo": "tsx src/prisma/seed-demo.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },

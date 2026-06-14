@@ -32,6 +32,11 @@ const PLAN_COLORS = {
   business: { border: 'border-gold/40', bg: 'bg-gold/5', badge: 'bg-gold/15 text-gold', icon: 'text-gold', price: 'text-gold' },
 };
 
+const DEMO_ACCESS = {
+  email: 'demo@upbarber.com',
+  password: 'Demo@12345',
+};
+
 function getPlanMeta(plan, index) {
   const slug = plan.slug || ['starter', 'pro', 'business'][index] || 'starter';
   return {
@@ -181,6 +186,7 @@ export default function Login() {
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [masterChallenge, setMasterChallenge] = useState(null);
   const [masterCode, setMasterCode] = useState('');
+  const [demoLoading, setDemoLoading] = useState(false);
 
   useEffect(() => {
     api.get('/public/plans')
@@ -237,6 +243,18 @@ export default function Login() {
       setError(err.response?.data?.error?.message || 'Não foi possível reenviar o código');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDemoAccess = async () => {
+    setDemoLoading(true);
+    setError('');
+    try {
+      await login(DEMO_ACCESS.email, DEMO_ACCESS.password);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Não foi possível entrar com o acesso demo agora');
+    } finally {
+      setDemoLoading(false);
     }
   };
 
@@ -445,6 +463,35 @@ export default function Login() {
                   >
                     Ver planos →
                   </button>
+                </p>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/4 p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/15 flex items-center justify-center text-gold flex-shrink-0">
+                    <Sparkles size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-gold font-bold">Acesso demo</p>
+                    <p className="text-sm text-white font-semibold mt-1">Teste o UpBarber como dono de barbearia.</p>
+                    <p className="text-xs text-gray-400 mt-1 leading-5">
+                      Entra com dados reais de demonstração para ver agenda, clientes, vendas, planos e relatórios.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDemoAccess}
+                  disabled={loading || demoLoading}
+                  className="btn-secondary w-full justify-center py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <ArrowRight size={16} />
+                  {demoLoading ? 'Entrando no demo...' : 'Entrar no demo agora'}
+                </button>
+
+                <p className="text-[11px] text-gray-500 leading-5">
+                  Login demo: demo@upbarber.com · Senha: Demo@12345
                 </p>
               </div>
             </div>
