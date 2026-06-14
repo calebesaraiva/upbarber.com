@@ -315,7 +315,7 @@ function buildAppointmentsRouter() {
     return ok(res, { availableSlots });
   });
   r.get("/:id", validate({ params: idParams }), async (req, res) => ok(res, await prisma.appointment.findFirst({ where: { id: req.params.id, barbershopId: tenantId(req) }, include: { client: true, barber: true, service: true } })));
-  r.put("/:id", validate({ params: idParams, body: body.partial().extend({ status: z.enum(["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]).optional() }) }), async (req, res) => ok(res, await prisma.appointment.update({ where: { id: req.params.id }, data: req.body })));
+  r.put("/:id", validate({ params: idParams, body: body.partial().extend({ status: z.enum(["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]).optional() }) }), async (req, res) => ok(res, await updateAppointment(req, req.params.id, req.body)));
   r.delete("/:id", validate({ params: idParams, body: z.object({ cancelReason: z.string().optional() }) }), async (req, res) => ok(res, await prisma.appointment.update({ where: { id: req.params.id }, data: { status: "cancelled", cancelReason: req.body.cancelReason } })));
   r.patch("/:id/status", validate({ params: idParams, body: z.object({ status: z.enum(["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]) }) }), async (req, res) => ok(res, await updateAppointmentStatus(req.params.id, tenantId(req), req.body.status)));
   return r;
@@ -327,8 +327,6 @@ async function createAppointment(req: Express.Request, input: any) {
   const service = await prisma.service.findFirstOrThrow({ where: { id: input.serviceId, barbershopId: shopId } });
   const endTime = addMinutes(input.startTime, service.durationMinutes);
   const date = sameDateOnly(input.date);
-  const conflict = await prisma.appointment.findFirst({ where: { barbershopId: shopId, branchId: input.branchId ?? undefined, barberId: input.barberId, date, status: { notIn: ["cancelled", "no_show"] }, AND: [{ startTime: { lt: endTime } }, { endTime: { gt: input.startTime } }] } });
-  if (conflict) throw new AppError(409, "APPOINTMENT_CONFLICT", "Barbeiro indisponível neste horário");
 
   let price = Number(service.price);
   let paymentMethod = input.paymentMethod ?? "cash";
@@ -346,12 +344,89 @@ async function createAppointment(req: Express.Request, input: any) {
   }
 
   return prisma.$transaction(async (tx) => {
+    await lockAppointmentSlot(tx, shopId, input.barberId, date);
+    await ensureAppointmentAvailability(tx, {
+      shopId,
+      barberId: input.barberId,
+      branchId: input.branchId ?? undefined,
+      date,
+      startTime: input.startTime,
+      endTime
+    });
     const appointment = await tx.appointment.create({ data: { ...input, date, endTime, durationMinutes: service.durationMinutes, price, paymentMethod, isSubscriber, subscriptionId, barbershopId: shopId } });
     if (subscriptionId) await tx.clientSubscription.update({ where: { id: subscriptionId }, data: { usedThisCycle: { increment: 1 } } });
     if (price > 0) await tx.financialTransaction.create({ data: { barbershopId: shopId, branchId: input.branchId, type: "income", category: "Servico", description: `Agendamento - ${service.name}`, amount: price, paymentMethod, appointmentId: appointment.id, barberId: input.barberId, date, status: "pending" } });
     await tx.notification.create({ data: { barbershopId: shopId, type: "info", title: "Novo agendamento", message: `Agendamento criado para ${input.startTime}`, relatedEntity: "appointment", relatedId: appointment.id } });
     await auditLog(req, { module: "Agenda", action: `Criou agendamento ${appointment.id}`, entityType: "appointment", entityId: appointment.id });
     return appointment;
+  });
+}
+
+async function ensureAppointmentAvailability(tx: any, input: {
+  shopId: string;
+  barberId: string;
+  branchId?: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  excludeAppointmentId?: string;
+}) {
+  const conflict = await tx.appointment.findFirst({
+    where: {
+      barbershopId: input.shopId,
+      barberId: input.barberId,
+      ...(input.branchId ? { branchId: input.branchId } : {}),
+      date: input.date,
+      status: { notIn: ["cancelled", "no_show"] },
+      ...(input.excludeAppointmentId ? { id: { not: input.excludeAppointmentId } } : {}),
+      AND: [{ startTime: { lt: input.endTime } }, { endTime: { gt: input.startTime } }]
+    },
+    select: { id: true }
+  });
+  if (conflict) throw new AppError(409, "APPOINTMENT_CONFLICT", "Barbeiro indisponível neste horário");
+}
+
+async function lockAppointmentSlot(tx: any, shopId: string, barberId: string, date: Date) {
+  const lockKey = `${shopId}:${barberId}:${date.toISOString().slice(0, 10)}`;
+  await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext('${lockKey.replace(/'/g, "''")}'))`);
+}
+
+async function updateAppointment(req: Express.Request, id: string, input: any) {
+  const shopId = tenantId(req);
+  const existing = await prisma.appointment.findFirstOrThrow({ where: { id, barbershopId: shopId } });
+  const serviceId = input.serviceId ?? existing.serviceId;
+  const barberId = input.barberId ?? existing.barberId;
+  const branchId = input.branchId ?? existing.branchId ?? selectedBranchId(req) ?? undefined;
+  const date = input.date ? sameDateOnly(input.date) : existing.date;
+  const startTime = input.startTime ?? existing.startTime;
+  const service = await prisma.service.findFirstOrThrow({ where: { id: serviceId, barbershopId: shopId } });
+  const endTime = addMinutes(startTime, service.durationMinutes);
+
+  return prisma.$transaction(async (tx) => {
+    await lockAppointmentSlot(tx, shopId, barberId, date);
+    await ensureAppointmentAvailability(tx, {
+      shopId,
+      barberId,
+      branchId,
+      date,
+      startTime,
+      endTime,
+      excludeAppointmentId: id
+    });
+
+    return tx.appointment.update({
+      where: { id },
+      data: {
+        ...input,
+        barberId,
+        serviceId,
+        branchId,
+        date,
+        startTime,
+        endTime,
+        durationMinutes: service.durationMinutes
+      }
+    });
   });
 }
 

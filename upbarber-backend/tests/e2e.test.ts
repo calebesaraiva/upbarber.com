@@ -215,6 +215,21 @@ describe("UpBarber API end-to-end", () => {
       expect(appointment.status).toBe(201);
       appointmentId = appointment.body.data.id;
 
+      const conflictAppointment = await request(app)
+        .post("/api/v1/appointments")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          clientId,
+          barberId,
+          serviceId,
+          date: appointmentDate,
+          startTime,
+          paymentMethod: "pix",
+          notes: "Conflito esperado"
+        });
+      expect(conflictAppointment.status).toBe(409);
+      expect(conflictAppointment.body.error.code).toBe("APPOINTMENT_CONFLICT");
+
       const completed = await request(app)
         .patch(`/api/v1/appointments/${appointmentId}/status`)
         .set("Authorization", `Bearer ${userToken}`)
