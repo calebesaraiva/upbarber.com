@@ -8,6 +8,19 @@ import { useBranch } from '../../context/BranchContext';
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const PM_LABELS = { pix: 'Pix', cash: 'Dinheiro', credit: 'Crédito', debit: 'Débito', subscription: 'Assinatura' };
 
+function unwrapList(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
+function unwrapObject(payload) {
+  if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'data' in payload) {
+    return payload.data;
+  }
+  return payload || {};
+}
+
 export default function Financial() {
   const { addToast } = useApp();
   const { branches, currentBranch, ready } = useBranch();
@@ -24,15 +37,30 @@ export default function Financial() {
 
   useEffect(() => {
     if (!ready) return;
-    Promise.all([
-      financialService.getSummary(activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId }),
-      financialService.listTransactions({ limit: 100, ...(activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId }) }),
-    ]).then(([s, t]) => {
-      setSummary(s.data.data || {});
-      setTransactions(t.data.data?.data || []);
-    }).catch(() => {
-      addToast('Erro ao carregar dados financeiros', 'error');
-    }).finally(() => setLoading(false));
+    let alive = true;
+    queueMicrotask(() => {
+      if (alive) setLoading(true);
+    });
+    (async () => {
+      try {
+        const params = activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId };
+        const [s, t] = await Promise.all([
+          financialService.getSummary(params),
+          financialService.listTransactions({ limit: 100, ...params }),
+        ]);
+        if (!alive) return;
+        setSummary(unwrapObject(s.data.data));
+        setTransactions(unwrapList(t.data.data));
+      } catch {
+        if (!alive) return;
+        addToast('Erro ao carregar dados financeiros', 'error');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [ready, activeBranchId, addToast]);
 
   if (loading) return <div className="card text-center py-12 text-gray-500 text-sm">Carregando...</div>;
@@ -41,13 +69,13 @@ export default function Financial() {
     <div className="space-y-5">
       <PageHeader title="Financeiro" subtitle="Resumo financeiro do período atual" />
       <div className="flex flex-wrap gap-2">
-        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => { setLoading(true); setBranchView('all'); }}>Todas as filiais</button>
-        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => { setLoading(true); setBranchView(currentBranch?.id || 'all'); }}>Filial atual</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView('all')}>Todas as filiais</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(currentBranch?.id || 'all')}>Filial atual</button>
         {branches.map(branch => (
           <button
             key={branch.id}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`}
-            onClick={() => { setLoading(true); setBranchView(branch.id); }}
+            onClick={() => setBranchView(branch.id)}
           >
             {branch.name}
           </button>

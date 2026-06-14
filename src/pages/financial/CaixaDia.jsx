@@ -11,6 +11,19 @@ const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', c
 
 const PM_LABELS = { pix: 'Pix', cash: 'Dinheiro', credit: 'Crédito', debit: 'Débito', subscription: 'Assinatura' };
 
+function unwrapList(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
+function unwrapObject(payload) {
+  if (payload && !Array.isArray(payload) && typeof payload === 'object' && 'data' in payload) {
+    return payload.data;
+  }
+  return payload || {};
+}
+
 export default function CaixaDia() {
   const { addToast } = useApp();
   const { branches, currentBranch, ready } = useBranch();
@@ -27,8 +40,8 @@ export default function CaixaDia() {
       financialService.getSummary(params),
       financialService.listTransactions({ limit: 100, ...params }),
     ]);
-    setSummary(s.data.data || {});
-    setItems(t.data.data?.data || []);
+    setSummary(unwrapObject(s.data.data));
+    setItems(unwrapList(t.data.data));
   }, [activeBranchId]);
 
   useEffect(() => {

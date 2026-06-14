@@ -6,6 +6,12 @@ import { useBranch } from '../../context/BranchContext';
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const STATUS_LABELS = { open: 'Aberto', closed: 'Fechado' };
 
+function unwrapList(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
 export default function HistoricoCaixas() {
   const { branches, currentBranch, ready } = useBranch();
   const [items, setItems] = useState([]);
@@ -14,7 +20,7 @@ export default function HistoricoCaixas() {
 
   useEffect(() => {
     if (!ready) return;
-    financialService.getRegisterHistory({ limit: 100, ...(activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId }) }).then(r => setItems(r.data.data?.data || []));
+    financialService.getRegisterHistory({ limit: 100, ...(activeBranchId === 'all' ? { branchId: 'all' } : { branchId: activeBranchId }) }).then(r => setItems(unwrapList(r.data.data)));
   }, [ready, activeBranchId]);
 
   return (
