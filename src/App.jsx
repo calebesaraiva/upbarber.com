@@ -56,6 +56,8 @@ import Support from './pages/Support';
 import SaasPlanos from './pages/SaasPlanos';
 import SubscriptionPayments from './pages/subscriptions/SubscriptionPayments';
 import MasterRoute from './pages/master/MasterRoute';
+import LegalPage from './pages/legal/LegalPage';
+import { CookieConsent } from './components/legal/CookieConsent';
 import { useAuth } from './context/AuthContext';
 import { canAccessPath, homeForRole } from './utils/access';
 
@@ -79,6 +81,9 @@ export default function App() {
           <AppProvider>
             <Routes>
               <Route path="/master/*" element={<MasterRoute />} />
+              <Route path="/termos" element={<LegalPage />} />
+              <Route path="/privacidade" element={<LegalPage />} />
+              <Route path="/cookies" element={<LegalPage />} />
 
               {/* Auth */}
           <Route path="/login" element={<Login />} />
@@ -127,6 +132,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
+            <CookieConsent />
           </AppProvider>
         </BranchProvider>
       </AuthProvider>

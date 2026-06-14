@@ -16,6 +16,10 @@ masterApi.interceptors.request.use(config => {
 
 export const masterLogin = (body) => masterApi.post(`${M}/auth/login`, body);
 export const masterMe = () => masterApi.get(`${M}/auth/me`);
+export const requestMasterEmailChange = (body) => masterApi.post(`${M}/auth/change-email/request`, body);
+export const confirmMasterEmailChange = (body) => masterApi.post(`${M}/auth/change-email/confirm`, body);
+export const requestMasterPasswordChange = (body) => masterApi.post(`${M}/auth/change-password/request`, body);
+export const confirmMasterPasswordChange = (body) => masterApi.post(`${M}/auth/change-password/confirm`, body);
 export const getMasterBarbershops = (params) => masterApi.get(`${M}/barbershops`, { params });
 export const createMasterBarbershop = (body) => masterApi.post(`${M}/barbershops`, body);
 export const inviteBarbershopOwner = (body) => masterApi.post(`${M}/invites`, body);

@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { canAccessPath } from '../../utils/access';
+import { COMPANY } from '../../constants/company';
 
 const navGroups = [
   {
@@ -83,8 +84,8 @@ export function Sidebar() {
           <Scissors size={18} className="text-dark" />
         </div>
         <div>
-          <p className="font-bold text-white text-sm leading-none">UpBarber</p>
-          <p className="text-xs text-gray-500 mt-0.5">Barbearia Premium</p>
+          <p className="font-bold text-white text-sm leading-none">{COMPANY.product}</p>
+          <p className="text-xs text-gray-500 mt-0.5">por {COMPANY.developer}</p>
         </div>
         <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden p-1 text-gray-500 hover:text-white">
           <X size={18} />
@@ -117,6 +118,10 @@ export function Sidebar() {
 
       {/* User */}
       <div className="p-3 border-t border-dark-400">
+        <div className="px-3 pb-3 text-[10px] text-gray-600 leading-4">
+          <p>Desenvolvido pela {COMPANY.developer}</p>
+          <p>CNPJ {COMPANY.cnpj}</p>
+        </div>
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-xs font-bold text-gold">BP</div>
           <div className="flex-1 min-w-0">

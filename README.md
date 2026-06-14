@@ -2,6 +2,10 @@
 
 Sistema SaaS completo de gerenciamento para barbearias, desenvolvido com React, Vite e TailwindCSS.
 
+Desenvolvido e mantido pela **NEXUS TECNOLOGIA LTDA**, CNPJ **52.671.137/0001-71**.
+
+Manual completo de uso, suporte e dúvidas: [MANUAL_COMPLETO_UPBARBER.md](./MANUAL_COMPLETO_UPBARBER.md)
+
 ## 🚀 Como Rodar
 
 ### Pré-requisitos

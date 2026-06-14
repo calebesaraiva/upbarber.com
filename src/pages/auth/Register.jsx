@@ -3,11 +3,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Scissors, CheckCircle } from 'lucide-react';
 import { authService } from '../../services/auth.service';
 import api from '../../services/api';
+import { COMPANY, COMPANY_LEGAL_LINE } from '../../constants/company';
 
 export default function Register() {
   const [searchParams] = useSearchParams();
+  const initialPlan = searchParams.get('planId') || searchParams.get('plan') || '';
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ name: '', email: searchParams.get('email') || '', phone: '', password: '', city: '', planId: '' });
+  const [form, setForm] = useState({ name: '', email: searchParams.get('email') || '', phone: '', password: '', city: '', planId: initialPlan });
   const [plans, setPlans] = useState([]);
   const [code, setCode] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -86,8 +88,9 @@ export default function Register() {
           <div className="w-8 h-8 bg-gold rounded-lg flex items-center justify-center">
             <Scissors size={16} className="text-dark" />
           </div>
-          <span className="font-bold text-white">UpBarber</span>
+          <span className="font-bold text-white">{COMPANY.product}</span>
         </div>
+        <p className="text-xs text-gray-500 mb-5">{COMPANY_LEGAL_LINE}</p>
 
         {/* Progress */}
         <div className="flex items-center gap-2 mb-8">
@@ -121,7 +124,7 @@ export default function Register() {
               <p className="text-sm text-gray-500 mb-6">E-mail e senha do administrador</p>
               <div className="space-y-4">
                 <div><label className="text-xs text-gray-400 mb-1 block">E-mail</label><input className="input" type="email" value={form.email} onChange={upd('email')} placeholder="seu@email.com" /></div>
-                <div><label className="text-xs text-gray-400 mb-1 block">Senha</label><input className="input" type="password" value={form.password} onChange={upd('password')} placeholder="Mínimo 8 caracteres" /></div>
+                <div><label className="text-xs text-gray-400 mb-1 block">Senha</label><input className="input" type="password" value={form.password} onChange={upd('password')} placeholder="Mínimo 6 caracteres" /></div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button className="btn-secondary flex-1 justify-center" onClick={() => setStep(1)}>Voltar</button>
@@ -167,6 +170,9 @@ export default function Register() {
 
         <p className="text-center text-xs text-gray-500 mt-4">
           Já tem conta? <Link to="/login" className="text-gold">Entrar</Link>
+        </p>
+        <p className="text-center text-[11px] text-gray-600 mt-3">
+          Ao cadastrar, você concorda com os <Link to="/termos" className="text-gold">Termos</Link>, a <Link to="/privacidade" className="text-gold">Política de Privacidade</Link> e a <Link to="/cookies" className="text-gold">Política de Cookies</Link>.
         </p>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Scissors, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import { authService } from '../../services/auth.service';
+import { COMPANY, COMPANY_LEGAL_LINE } from '../../constants/company';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -62,8 +63,9 @@ export default function ForgotPassword() {
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2 mb-8">
           <div className="w-8 h-8 bg-gold rounded-lg flex items-center justify-center"><Scissors size={16} className="text-dark" /></div>
-          <span className="font-bold text-white">UpBarber</span>
+          <span className="font-bold text-white">{COMPANY.product}</span>
         </div>
+        <p className="text-xs text-gray-500 mb-5">{COMPANY_LEGAL_LINE}</p>
         <div className="card">
           {!sent ? (
             <>

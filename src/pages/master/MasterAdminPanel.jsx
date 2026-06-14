@@ -48,7 +48,13 @@ import {
   getMasterFlags,
   updateMasterFlag,
   exportMasterReport,
+  masterMe,
+  requestMasterEmailChange,
+  confirmMasterEmailChange,
+  requestMasterPasswordChange,
+  confirmMasterPasswordChange,
 } from "../../services/master.service";
+import { COMPANY } from "../../constants/company";
 
 // ─── Paleta ───────────────────────────────────────────────────────────────────
 const P = {
@@ -596,7 +602,7 @@ function BarbeariasSection() {
               {plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {fmt(plan.price)}</option>)}
             </select>
           </label>
-          <label style={{ color: P.muted, fontSize: 12 }}>Forma de pagamento<input value="Pix · Banco do Brasil · CNPJ 52.671.137/0001-71" disabled style={{ width: "100%", marginTop: 5, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 7, padding: "10px 12px", color: P.muted, boxSizing:"border-box" }}/></label>
+          <label style={{ color: P.muted, fontSize: 12 }}>Forma de pagamento<input value={`Pix · ${COMPANY.bank} · CNPJ ${COMPANY.cnpj} · ${COMPANY.developer}`} disabled style={{ width: "100%", marginTop: 5, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 7, padding: "10px 12px", color: P.muted, boxSizing:"border-box" }}/></label>
           <label style={{ color: P.muted, fontSize: 12 }}>Situação da primeira fatura
             <select value={newShop.invoiceStatus} onChange={e => setNewShop({ ...newShop, invoiceStatus: e.target.value })}
               style={{ width: "100%", marginTop: 5, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 7, padding: "10px 12px", color: P.text }}>
@@ -1274,6 +1280,19 @@ function ConfigSection() {
   const [config, setConfig] = useState({});
   const [flags, setFlags] = useState([]);
   const [plans, setPlans] = useState([]);
+  const [masterProfile, setMasterProfile] = useState(null);
+  const [masterTab, setMasterTab] = useState("email");
+  const [masterForm, setMasterForm] = useState({
+    currentPassword: "",
+    newEmail: "",
+    emailCode: "",
+    newPassword: "",
+    confirmPassword: "",
+    passwordCode: ""
+  });
+  const [masterLoading, setMasterLoading] = useState(false);
+  const [masterInfo, setMasterInfo] = useState("");
+  const [masterError, setMasterError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -1282,16 +1301,18 @@ function ConfigSection() {
     setLoading(true);
     setError(null);
     try {
-      const [cfgRes, flagRes, planRes] = await Promise.all([
+      const [cfgRes, flagRes, planRes, meRes] = await Promise.all([
         getMasterConfig(),
         getMasterFlags(),
         getMasterPlans(),
+        masterMe()
       ]);
       setConfig(unwrap(cfgRes.data) ?? {});
       const flagRaw = unwrap(flagRes.data);
       setFlags(Array.isArray(flagRaw) ? flagRaw : []);
       const planRaw = unwrap(planRes.data);
       setPlans(Array.isArray(planRaw) ? planRaw : []);
+      setMasterProfile(unwrap(meRes.data) ?? null);
     } catch (e) {
       setError(e.response?.data?.error?.message || e.message);
     } finally {
@@ -1325,11 +1346,115 @@ function ConfigSection() {
 
   const upd = (key, value) => setConfig(c => ({ ...c, [key]: value }));
 
+  const updMaster = (key, value) => setMasterForm(c => ({ ...c, [key]: value }));
+
+  const sendEmailCode = async () => {
+    setMasterLoading(true);
+    setMasterError("");
+    setMasterInfo("");
+    try {
+      if (!masterForm.currentPassword || !masterForm.newEmail) throw new Error("Preencha a senha atual e o novo e-mail.");
+      await requestMasterEmailChange({ currentPassword: masterForm.currentPassword, newEmail: masterForm.newEmail });
+      setMasterInfo("Código enviado para o e-mail atual do master.");
+    } catch (e) {
+      setMasterError(e.response?.data?.error?.message || e.message);
+    } finally {
+      setMasterLoading(false);
+    }
+  };
+
+  const confirmEmailChange = async () => {
+    setMasterLoading(true);
+    setMasterError("");
+    setMasterInfo("");
+    try {
+      await confirmMasterEmailChange({ code: masterForm.emailCode });
+      setMasterInfo("E-mail do master atualizado com sucesso.");
+      await load();
+    } catch (e) {
+      setMasterError(e.response?.data?.error?.message || e.message);
+    } finally {
+      setMasterLoading(false);
+    }
+  };
+
+  const sendPasswordCode = async () => {
+    setMasterLoading(true);
+    setMasterError("");
+    setMasterInfo("");
+    try {
+      if (!masterForm.currentPassword || !masterForm.newPassword) throw new Error("Preencha a senha atual e a nova senha.");
+      if (masterForm.newPassword !== masterForm.confirmPassword) throw new Error("A confirmação da nova senha não confere.");
+      await requestMasterPasswordChange({ currentPassword: masterForm.currentPassword, newPassword: masterForm.newPassword });
+      setMasterInfo("Código enviado para confirmar a nova senha.");
+    } catch (e) {
+      setMasterError(e.response?.data?.error?.message || e.message);
+    } finally {
+      setMasterLoading(false);
+    }
+  };
+
+  const confirmPasswordChange = async () => {
+    setMasterLoading(true);
+    setMasterError("");
+    setMasterInfo("");
+    try {
+      await confirmMasterPasswordChange({ code: masterForm.passwordCode });
+      setMasterInfo("Senha do master atualizada com sucesso.");
+      setMasterForm(c => ({ ...c, currentPassword: "", newPassword: "", confirmPassword: "", passwordCode: "" }));
+    } catch (e) {
+      setMasterError(e.response?.data?.error?.message || e.message);
+    } finally {
+      setMasterLoading(false);
+    }
+  };
+
   if (loading) return <Spinner />;
   if (error) return <ErrMsg msg={error} onRetry={load} />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <Section title="Conta Master">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <Input label="E-mail atual" value={masterProfile?.email ?? ""} disabled />
+          <Input label="Nome do acesso" value={masterProfile?.name ?? "Admin Master"} disabled />
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <Btn variant={masterTab === "email" ? "primary" : "secondary"} onClick={() => setMasterTab("email")}>Trocar e-mail</Btn>
+          <Btn variant={masterTab === "password" ? "primary" : "secondary"} onClick={() => setMasterTab("password")}>Trocar senha</Btn>
+        </div>
+
+        {masterTab === "email" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Senha atual" type="password" value={masterForm.currentPassword} onChange={e => updMaster("currentPassword", e.target.value)} placeholder="Digite sua senha atual" />
+            <Input label="Novo e-mail" type="email" value={masterForm.newEmail} onChange={e => updMaster("newEmail", e.target.value)} placeholder="novo@email.com" />
+            <Input label="Código de confirmação" value={masterForm.emailCode} onChange={e => updMaster("emailCode", e.target.value)} placeholder="6 dígitos" />
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+              <Btn icon={Send} onClick={sendEmailCode} disabled={masterLoading}>Enviar código</Btn>
+              <Btn icon={Check} variant="secondary" onClick={confirmEmailChange} disabled={masterLoading || !masterForm.emailCode}>Confirmar</Btn>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Senha atual" type="password" value={masterForm.currentPassword} onChange={e => updMaster("currentPassword", e.target.value)} placeholder="Digite sua senha atual" />
+            <Input label="Nova senha" type="password" value={masterForm.newPassword} onChange={e => updMaster("newPassword", e.target.value)} placeholder="Digite a nova senha" />
+            <Input label="Confirmar nova senha" type="password" value={masterForm.confirmPassword} onChange={e => updMaster("confirmPassword", e.target.value)} placeholder="Repita a nova senha" />
+            <Input label="Código de confirmação" value={masterForm.passwordCode} onChange={e => updMaster("passwordCode", e.target.value)} placeholder="6 dígitos" />
+            <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Btn icon={Send} onClick={sendPasswordCode} disabled={masterLoading}>Enviar código</Btn>
+              <Btn icon={Check} variant="secondary" onClick={confirmPasswordChange} disabled={masterLoading || !masterForm.passwordCode}>Confirmar</Btn>
+            </div>
+          </div>
+        )}
+
+        {masterInfo && <p style={{ marginTop: 12, color: P.green, fontSize: 13 }}>{masterInfo}</p>}
+        {masterError && <p style={{ marginTop: 12, color: P.red, fontSize: 13 }}>{masterError}</p>}
+        <p style={{ marginTop: 12, color: P.muted, fontSize: 12, lineHeight: 1.6 }}>
+          O código de confirmação é enviado para o e-mail atual do master e expira em 15 minutos.
+        </p>
+      </Section>
+
       {/* SMTP */}
       <Section title="Configurações de Email (SMTP)">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1471,7 +1596,8 @@ export default function MasterAdminPanel() {
           </div>
           {sidebarOpen && (
             <div>
-              <div style={{ color: P.text, fontWeight: 800, fontSize: 15 }}>UpBarber</div>
+              <div style={{ color: P.text, fontWeight: 800, fontSize: 15 }}>{COMPANY.product}</div>
+              <div style={{ color: P.muted, fontSize: 10, marginTop: 2 }}>{COMPANY.developer}</div>
               <div style={{ background: P.purple, color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, display: "inline-block", letterSpacing: 1 }}>MASTER ADMIN</div>
             </div>
           )}
@@ -1488,6 +1614,12 @@ export default function MasterAdminPanel() {
         </nav>
 
         <div style={{ padding: "12px 8px", borderTop: `1px solid ${P.border}` }}>
+          {sidebarOpen && (
+            <div style={{ color: P.muted, fontSize: 10, lineHeight: 1.5, padding: "0 12px 10px" }}>
+              <div>Feito pela {COMPANY.developer}</div>
+              <div>CNPJ {COMPANY.cnpj}</div>
+            </div>
+          )}
           <button onClick={() => setSidebarOpen(o => !o)}
             style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: "transparent", color: P.muted, cursor: "pointer", width: "100%" }}>
             <ChevronDown size={16} style={{ transform: sidebarOpen ? "rotate(90deg)" : "rotate(-90deg)" }} />
@@ -1506,6 +1638,10 @@ export default function MasterAdminPanel() {
         <header style={{ background: P.surface, borderBottom: `1px solid ${P.border}`, padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <h1 style={{ color: P.text, fontWeight: 700, fontSize: 18, margin: 0 }}>{SECTION_TITLES[active]}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ color: P.muted, fontSize: 11, textAlign: "right" }}>
+              <div>{COMPANY.developer}</div>
+              <div>CNPJ {COMPANY.cnpj}</div>
+            </div>
             <div style={{ background: "#064E3B", color: P.green, fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20 }}>
               🟢 Plataforma Online
             </div>

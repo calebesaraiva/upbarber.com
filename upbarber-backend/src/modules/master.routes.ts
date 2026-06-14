@@ -14,6 +14,8 @@ import { createPixCharge, createPixPayload } from "../shared/utils/pix.js";
 import { env } from "../shared/env.js";
 
 const router = Router();
+const masterChangeEmailKey = (adminId: string) => `master_change_email:${adminId}`;
+const masterChangePasswordKey = (adminId: string) => `master_change_password:${adminId}`;
 
 const idParams = z.object({ id: z.string() });
 const pagingQuery = z.object({ page: z.coerce.number().optional(), limit: z.coerce.number().optional(), search: z.string().optional() }).passthrough();
@@ -46,6 +48,71 @@ router.use(authorizeMaster);
 router.get("/auth/me", async (req, res) => {
   const admin = await prisma.masterAdmin.findUniqueOrThrow({ where: { id: req.masterAdmin.adminId } });
   return ok(res, publicAdmin(admin));
+});
+
+router.post("/auth/change-email/request", validate({ body: z.object({ currentPassword: z.string().min(1), newEmail: z.string().email() }) }), async (req, res) => {
+  const admin = await prisma.masterAdmin.findUniqueOrThrow({ where: { id: req.masterAdmin.adminId } });
+  const valid = await bcrypt.compare(req.body.currentPassword, admin.passwordHash);
+  if (!valid) throw new AppError(401, "INVALID_MASTER_CREDENTIALS", "Senha atual inválida");
+  const newEmail = req.body.newEmail.toLowerCase();
+  if (newEmail === admin.email.toLowerCase()) throw new AppError(400, "EMAIL_UNCHANGED", "O novo email precisa ser diferente do atual");
+  const existing = await prisma.masterAdmin.findUnique({ where: { email: newEmail } });
+  if (existing) throw new AppError(409, "EMAIL_ALREADY_IN_USE", "Este email já está em uso");
+  const code = String(crypto.randomInt(100000, 1000000));
+  await saveMasterChange(masterChangeEmailKey(admin.id), {
+    kind: "email",
+    codeHash: sha256(code),
+    newEmail,
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+  });
+  await sendMail(admin.email, "Código para confirmar a troca de email do Master UpBarber",
+    emailLayout("Confirme sua nova conta de acesso", `${emailParagraph("Recebemos uma solicitação para trocar o e-mail do acesso master. Use o código abaixo para confirmar a mudança com segurança.")}${emailCode(code)}${emailParagraph(`O novo e-mail será ${newEmail}. Se você não solicitou esta alteração, ignore esta mensagem.`)}`, {
+      eyebrow: "Segurança Master",
+      preheader: "Confirme a troca de email do acesso master UpBarber.",
+      footerNote: "O código expira em 15 minutos."
+    }));
+  return ok(res, { sentTo: admin.email, expiresInMinutes: 15 });
+});
+
+router.post("/auth/change-email/confirm", validate({ body: z.object({ code: z.string().length(6) }) }), async (req, res) => {
+  const admin = await prisma.masterAdmin.findUniqueOrThrow({ where: { id: req.masterAdmin.adminId } });
+  const pending = await readMasterChange(masterChangeEmailKey(admin.id));
+  if (!pending || pending.kind !== "email" || pending.expiresAt < Date.now()) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+  if (sha256(req.body.code) !== pending.codeHash) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+  await prisma.masterAdmin.update({ where: { id: admin.id }, data: { email: pending.newEmail } });
+  await clearMasterChange(masterChangeEmailKey(admin.id));
+  return ok(res, { email: pending.newEmail });
+});
+
+router.post("/auth/change-password/request", validate({ body: z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(8) }) }), async (req, res) => {
+  const admin = await prisma.masterAdmin.findUniqueOrThrow({ where: { id: req.masterAdmin.adminId } });
+  const valid = await bcrypt.compare(req.body.currentPassword, admin.passwordHash);
+  if (!valid) throw new AppError(401, "INVALID_MASTER_CREDENTIALS", "Senha atual inválida");
+  const code = String(crypto.randomInt(100000, 1000000));
+  const newPasswordHash = await bcrypt.hash(req.body.newPassword, 12);
+  await saveMasterChange(masterChangePasswordKey(admin.id), {
+    kind: "password",
+    codeHash: sha256(code),
+    newPasswordHash,
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+  });
+  await sendMail(admin.email, "Código para confirmar a nova senha do Master UpBarber",
+    emailLayout("Confirme sua nova senha", `${emailParagraph("Recebemos uma solicitação para alterar a senha do acesso master. Use o código abaixo para confirmar a troca.")}${emailCode(code)}${emailParagraph("Se você não solicitou esta alteração, ignore esta mensagem e mantenha sua senha atual.")}`, {
+      eyebrow: "Segurança Master",
+      preheader: "Confirme a nova senha do acesso master UpBarber.",
+      footerNote: "O código expira em 15 minutos."
+    }));
+  return ok(res, { sentTo: admin.email, expiresInMinutes: 15 });
+});
+
+router.post("/auth/change-password/confirm", validate({ body: z.object({ code: z.string().length(6) }) }), async (req, res) => {
+  const admin = await prisma.masterAdmin.findUniqueOrThrow({ where: { id: req.masterAdmin.adminId } });
+  const pending = await readMasterChange(masterChangePasswordKey(admin.id));
+  if (!pending || pending.kind !== "password" || pending.expiresAt < Date.now()) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+  if (sha256(req.body.code) !== pending.codeHash) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+  await prisma.masterAdmin.update({ where: { id: admin.id }, data: { passwordHash: pending.newPasswordHash } });
+  await clearMasterChange(masterChangePasswordKey(admin.id));
+  return ok(res, { success: true });
 });
 
 router.get("/barbershops/stats", async (_req, res) => {
@@ -486,5 +553,35 @@ function isSensitive(key: string) {
 }
 
 const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
+
+type MasterChangeRecord = {
+  kind: "email" | "password";
+  codeHash: string;
+  expiresAt: number;
+  newEmail?: string;
+  newPasswordHash?: string;
+};
+
+async function saveMasterChange(key: string, record: MasterChangeRecord) {
+  await prisma.platformConfig.upsert({
+    where: { key },
+    update: { value: JSON.stringify(record) },
+    create: { key, value: JSON.stringify(record) }
+  });
+}
+
+async function readMasterChange(key: string) {
+  const item = await prisma.platformConfig.findUnique({ where: { key } });
+  if (!item) return null;
+  try {
+    return JSON.parse(item.value) as MasterChangeRecord;
+  } catch {
+    return null;
+  }
+}
+
+async function clearMasterChange(key: string) {
+  await prisma.platformConfig.delete({ where: { key } }).catch(() => undefined);
+}
 
 export default router;

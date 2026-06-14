@@ -2,6 +2,9 @@ import nodemailer from "nodemailer";
 import { env } from "../env.js";
 import { AppError } from "./http.js";
 
+const companyName = "NEXUS TECNOLOGIA LTDA";
+const companyCnpj = "52.671.137/0001-71";
+
 type EmailTone = "gold" | "green" | "blue" | "red";
 
 type EmailLayoutOptions = {
@@ -94,6 +97,7 @@ export function emailLayout(title: string, content: string, options: EmailLayout
                     <td style="padding:22px 24px">
                       <div style="color:#FFFFFF;font-size:16px;font-weight:800">UpBarber</div>
                       <p style="margin:6px 0 0;color:#CBD5E1;font-size:13px;line-height:20px">Tecnologia para barbearias que crescem com controle, agenda organizada e atendimento mais profissional.</p>
+                      <p style="margin:10px 0 0;color:#94A3B8;font-size:12px;line-height:18px">Desenvolvido e mantido pela ${companyName} · CNPJ ${companyCnpj}</p>
                       ${footerNote}
                       <p style="margin:14px 0 0;color:#94A3B8;font-size:12px;line-height:18px">Enviado por comercial@nexustecnologialtda.com.br</p>
                     </td>
