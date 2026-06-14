@@ -126,7 +126,9 @@ export function Sidebar() {
           <p>CNPJ {COMPANY.cnpj}</p>
         </div>
         <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-xs font-bold text-gold">BP</div>
+          <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-xs font-bold text-gold">
+            {(barbershop?.name || user?.name || 'UB').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+          </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-white truncate">{barbershop?.name || 'UpBarber'}</p>
             <p className="text-[10px] text-gray-500 truncate">{user?.email || 'usuario@upbarber.com'}</p>

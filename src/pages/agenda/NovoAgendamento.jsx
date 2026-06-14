@@ -59,7 +59,7 @@ export default function NovoAgendamento() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <button onClick={() => navigate(-1)} className="p-2 text-gray-400"><ArrowLeft size={18}/></button>
-        <div><h1 className="page-title">{editing ? 'Editar Agendamento' : 'Novo Agendamento'}</h1><p className="text-sm text-gray-500">Dados carregados da UpBarber API</p></div>
+        <div><h1 className="page-title">{editing ? 'Editar Agendamento' : 'Novo Agendamento'}</h1><p className="text-sm text-gray-500">{editing ? 'Altere os dados e salve' : 'Preencha os dados do agendamento'}</p></div>
       </div>
       <form onSubmit={submit} className="max-w-3xl space-y-4">
         <div className="card grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -438,7 +438,7 @@ function BarbeariasSection() {
   const [chargeMethod, setChargeMethod] = useState("Pix");
   const [chargeObs, setChargeObs] = useState("");
   const [saving, setSaving] = useState(false);
-  const masterMfaEnabled = config.master_mfa_enabled !== "false";
+  const masterMfaEnabled = false;
   const [plans, setPlans] = useState([]);
   const [newShop, setNewShop] = useState({
     barbershopName: "", ownerName: "", ownerEmail: "", ownerPassword: "",
