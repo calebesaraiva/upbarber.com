@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api/v1';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 export const unwrap = (payload) => payload?.data ?? payload;
 

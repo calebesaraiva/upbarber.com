@@ -9,7 +9,7 @@ import { authorizeMaster, signMasterToken } from "../shared/middleware/master-au
 import { signAccessToken } from "../shared/middleware/auth.js";
 import { AppError, created, noContent, ok, paginated } from "../shared/utils/http.js";
 import { pagination, textSearch } from "../shared/utils/query.js";
-import { emailButton, emailCopyBox, emailInfoRows, emailLayout, emailParagraph, emailSteps, escapeHtml, sendMail } from "../shared/utils/mail.js";
+import { emailButton, emailCode, emailCopyBox, emailInfoRows, emailLayout, emailParagraph, emailSecondaryButton, emailSteps, escapeHtml, sendMail } from "../shared/utils/mail.js";
 import { createPixCharge, createPixPayload } from "../shared/utils/pix.js";
 import { env } from "../shared/env.js";
 
@@ -34,10 +34,23 @@ const provisionBarbershopSchema = z.object({
   trialDays: z.coerce.number().int().positive().max(365).optional()
 });
 
-router.post("/auth/login", validate({ body: z.object({ email: z.string().email(), password: z.string().min(1) }) }), async (req, res) => {
-  const admin = await prisma.masterAdmin.findUnique({ where: { email: req.body.email } });
+router.post("/auth/login", validate({ body: z.object({ email: z.string().email(), password: z.string().min(1), code: z.string().length(6).optional(), resend: z.boolean().optional() }) }), async (req, res) => {
+  const admin = await prisma.masterAdmin.findUnique({ where: { email: req.body.email.toLowerCase() } });
   if (!admin || !await bcrypt.compare(req.body.password, admin.passwordHash)) {
     throw new AppError(401, "INVALID_MASTER_CREDENTIALS", "Email ou senha inválidos");
+  }
+  if (await isMasterMfaEnabled()) {
+    const pending = await readMasterLoginChallenge(admin.id);
+    if (req.body.code) {
+      if (!pending || pending.expiresAt < Date.now()) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+      if (sha256(req.body.code) !== pending.codeHash) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+      await clearMasterLoginChallenge(admin.id);
+    } else {
+      if (req.body.resend || !pending || pending.expiresAt < Date.now()) {
+        await issueMasterLoginChallenge(admin.id, admin.email);
+      }
+      return res.status(202).json({ data: { requires2fa: true, sentTo: admin.email, expiresInMinutes: 10 } });
+    }
   }
   const token = signMasterToken({ type: "master", adminId: admin.id, role: admin.role, email: admin.email });
   return ok(res, { token, admin: publicAdmin(admin) });
@@ -552,6 +565,11 @@ function isSensitive(key: string) {
   return ["smtp_pass", "stripe_secret_key", "stripe_webhook_secret"].includes(key);
 }
 
+async function isMasterMfaEnabled() {
+  const row = await prisma.platformConfig.findUnique({ where: { key: "master_mfa_enabled" } });
+  return row ? row.value !== "false" : true;
+}
+
 const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 
 type MasterChangeRecord = {
@@ -582,6 +600,56 @@ async function readMasterChange(key: string) {
 
 async function clearMasterChange(key: string) {
   await prisma.platformConfig.delete({ where: { key } }).catch(() => undefined);
+}
+
+type MasterLoginChallengeRecord = {
+  codeHash: string;
+  expiresAt: number;
+};
+
+async function issueMasterLoginChallenge(adminId: string, email: string) {
+  const code = String(crypto.randomInt(100000, 1000000));
+  const record: MasterLoginChallengeRecord = {
+    codeHash: sha256(code),
+    expiresAt: Date.now() + 10 * 60 * 1000
+  };
+  await prisma.platformConfig.upsert({
+    where: { key: masterLoginChallengeKey(adminId) },
+    update: { value: JSON.stringify(record) },
+    create: { key: masterLoginChallengeKey(adminId), value: JSON.stringify(record) }
+  });
+
+  await sendMail(
+    email,
+    "Seu código de acesso master UpBarber",
+    emailLayout(
+      "Confirme sua entrada no painel master",
+      `${emailParagraph("Recebemos uma tentativa de acesso ao painel master. Use o código abaixo para concluir a autenticação em dois fatores.")}${emailCode(code)}${emailParagraph("Se não foi você, ignore este email e mantenha sua senha protegida.")}${emailButton("Abrir o painel master", `${env.APP_URL.replace(/\/$/, "")}/login`)}${emailSecondaryButton("Ir para o UpBarber", `${env.APP_URL.replace(/\/$/, "")}/login`)}`,
+      {
+        eyebrow: "Autenticação master",
+        preheader: "Código de verificação para acesso ao painel master.",
+        footerNote: "O código expira em 10 minutos."
+      }
+    )
+  );
+}
+
+async function readMasterLoginChallenge(adminId: string) {
+  const item = await prisma.platformConfig.findUnique({ where: { key: masterLoginChallengeKey(adminId) } });
+  if (!item) return null;
+  try {
+    return JSON.parse(item.value) as MasterLoginChallengeRecord;
+  } catch {
+    return null;
+  }
+}
+
+async function clearMasterLoginChallenge(adminId: string) {
+  await prisma.platformConfig.delete({ where: { key: masterLoginChallengeKey(adminId) } }).catch(() => undefined);
+}
+
+function masterLoginChallengeKey(adminId: string) {
+  return `master_login_2fa:${adminId}`;
 }
 
 export default router;

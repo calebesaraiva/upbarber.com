@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, options = {}) => {
     try {
       const res = await authService.login(email, password);
       const data = unwrap(res.data);
@@ -42,8 +42,11 @@ export function AuthProvider({ children }) {
       return { type: 'barbershop', user: data.user };
     } catch (normalError) {
       try {
-        const res = await masterLogin({ email, password });
+        const res = await masterLogin({ email, password, code: options.code, resend: options.resend });
         const data = unwrap(res.data);
+        if (data?.requires2fa) {
+          return { type: 'master-challenge', sentTo: data.sentTo, expiresInMinutes: data.expiresInMinutes };
+        }
         localStorage.removeItem('upbarber:token');
         localStorage.removeItem('upbarber:refreshToken');
         localStorage.removeItem('upbarber:branchId');
@@ -52,8 +55,8 @@ export function AuthProvider({ children }) {
         setBarbershop(null);
         navigate('/master');
         return { type: 'master', admin: data.admin };
-      } catch {
-        throw normalError;
+      } catch (masterError) {
+        throw options.code ? masterError : normalError;
       }
     }
   };

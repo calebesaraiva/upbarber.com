@@ -2,6 +2,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { BottomNavigation } from './BottomNavigation';
 import { ToastContainer } from '../ui/Toast';
+import { SaasPaymentGate } from '../billing/SaasPaymentGate';
 import { COMPANY_LEGAL_LINE } from '../../constants/company';
 
 export function Layout({ children }) {
@@ -18,6 +19,7 @@ export function Layout({ children }) {
         </main>
       </div>
       <BottomNavigation />
+      <SaasPaymentGate />
       <ToastContainer />
     </div>
   );

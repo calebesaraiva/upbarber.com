@@ -9,6 +9,12 @@ let masterToken = "";
 
 describe("UpBarber API end-to-end", () => {
   beforeAll(async () => {
+    await prisma.platformConfig.upsert({
+      where: { key: "master_mfa_enabled" },
+      update: { value: "false" },
+      create: { key: "master_mfa_enabled", value: "false" }
+    });
+
     const userLogin = await request(app)
       .post("/api/v1/auth/login")
       .send({ email: "admin@upbarber.com", password: "123456" });
@@ -182,6 +188,27 @@ describe("UpBarber API end-to-end", () => {
     expect(me.body.data.role).toBe("master");
     expect(stats.status).toBe(200);
     expect(plans.status).toBe(200);
+  });
+
+  it("returns a 2fa challenge for master login when enabled", async () => {
+    await prisma.platformConfig.upsert({
+      where: { key: "master_mfa_enabled" },
+      update: { value: "true" },
+      create: { key: "master_mfa_enabled", value: "true" }
+    });
+
+    const challenge = await request(app)
+      .post("/api/v1/master/auth/login")
+      .send({ email: "admin@upbarber.com.br", password: "Admin@2026!" });
+
+    expect(challenge.status).toBe(202);
+    expect(challenge.body.data.requires2fa).toBe(true);
+
+    await prisma.platformConfig.upsert({
+      where: { key: "master_mfa_enabled" },
+      update: { value: "false" },
+      create: { key: "master_mfa_enabled", value: "false" }
+    });
   });
 
   it("provisions a paid SaaS tenant that can log in, manage only its data, and is blocked when suspended", async () => {

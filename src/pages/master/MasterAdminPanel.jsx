@@ -353,6 +353,7 @@ function BarbeariasSection() {
   const [chargeMethod, setChargeMethod] = useState("Pix");
   const [chargeObs, setChargeObs] = useState("");
   const [saving, setSaving] = useState(false);
+  const masterMfaEnabled = config.master_mfa_enabled !== "false";
   const [plans, setPlans] = useState([]);
   const [newShop, setNewShop] = useState({
     barbershopName: "", ownerName: "", ownerEmail: "", ownerPassword: "",
@@ -1409,6 +1410,18 @@ function ConfigSection() {
     }
   };
 
+  const saveMasterSecurity = async () => {
+    setSaving(true);
+    try {
+      await updateMasterConfig({ master_mfa_enabled: String(!masterMfaEnabled) });
+      await load();
+    } catch (e) {
+      alert("Erro ao salvar: " + (e.response?.data?.error?.message || e.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) return <Spinner />;
   if (error) return <ErrMsg msg={error} onRetry={load} />;
 
@@ -1447,6 +1460,20 @@ function ConfigSection() {
             </div>
           </div>
         )}
+
+        <div style={{ marginTop: 18, padding: 16, border: `1px solid ${P.border}`, borderRadius: 10, background: P.surface }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <div>
+              <div style={{ color: P.text, fontWeight: 700, fontSize: 14 }}>Verificação em 2 etapas do master</div>
+              <div style={{ color: P.muted, fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
+                Quando ativa, o login master exige um código enviado por email antes de liberar o painel.
+              </div>
+            </div>
+            <Btn variant={masterMfaEnabled ? "success" : "secondary"} onClick={saveMasterSecurity} disabled={saving}>
+              {masterMfaEnabled ? "Desativar 2FA" : "Ativar 2FA"}
+            </Btn>
+          </div>
+        </div>
 
         {masterInfo && <p style={{ marginTop: 12, color: P.green, fontSize: 13 }}>{masterInfo}</p>}
         {masterError && <p style={{ marginTop: 12, color: P.red, fontSize: 13 }}>{masterError}</p>}
