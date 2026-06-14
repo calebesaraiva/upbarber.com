@@ -168,6 +168,8 @@ model SaasPlan {
   storageGb               Int               @default(1)
   isActive                Boolean           @default(true)
   sortOrder               Int               @default(0)
+  modality                String            @default("normal")
+  defaultModules          Json              @default("[]")
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @default(now()) @updatedAt
   barbershops             Barbershop[]
@@ -196,6 +198,7 @@ model Barbershop {
   subscriptionStatus SubscriptionStatus @default(trial)
   approvalStatus     String             @default("approved")
   registrationSource String             @default("master")
+  enabledModules     Json               @default("[]")
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 

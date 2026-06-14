@@ -325,30 +325,437 @@ function commissionsRouter() {
   });
   r.patch("/reports/:id/pay", validate({ params: idParams, body: z.object({ paidAt: z.string().optional() }) }), async (req, res) => ok(res, await prisma.commissionReport.update({ where: { id: req.params.id }, data: { isPaid: true, paidAt: req.body.paidAt ? new Date(req.body.paidAt) : new Date() } })));
   r.get("/reports/:id", validate({ params: idParams }), async (req, res) => ok(res, await prisma.commissionReport.findFirst({ where: { id: req.params.id, barbershopId: tenantId(req) }, include: { barber: true } })));
-  r.get("/reports/:id/pdf", validate({ params: idParams }), async () => {
-    throw new AppError(501, "PDF_EXPORT_NOT_CONFIGURED", "Configure um gerador de PDF para exportar comissões");
+  r.get("/reports/:id/pdf", validate({ params: idParams }), async (req, res) => {
+    const report = await prisma.commissionReport.findFirstOrThrow({ where: { id: req.params.id, barbershopId: tenantId(req) }, include: { barber: true } });
+    const PDFDocument = (await import("pdfkit")).default;
+    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="comissao-${report.barber.name.replace(/\s/g, "-")}-${report.period}.pdf"`);
+    doc.pipe(res);
+    doc.fontSize(18).font("Helvetica-Bold").text("UpBarber — Relatório de Comissão", { align: "center" });
+    doc.moveDown(0.5);
+    doc.fontSize(12).font("Helvetica").text(`Barbeiro: ${report.barber.name}`);
+    doc.text(`Período: ${report.period}`);
+    doc.text(`Status: ${report.isPaid ? "Pago" : "Pendente"}${report.paidAt ? " em " + report.paidAt.toLocaleDateString("pt-BR") : ""}`);
+    doc.moveDown();
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(0.5);
+    const rows = [
+      ["Atendimentos realizados", String(report.serviceCount)],
+      ["Receita de serviços", `R$ ${Number(report.serviceRevenue).toFixed(2)}`],
+      ["Comissão de serviços", `R$ ${Number(report.serviceCommission).toFixed(2)}`],
+      ["Total da comissão", `R$ ${Number(report.totalCommission).toFixed(2)}`],
+    ];
+    for (const [k, v] of rows) {
+      doc.fontSize(11).font("Helvetica").text(k, { continued: true }).font("Helvetica-Bold").text(v, { align: "right" });
+      doc.moveDown(0.4);
+    }
+    doc.end();
   });
   return r;
 }
 
 function advancedReportsRouter() {
   const r = Router();
-  const paths = [
-    "/financial/revenue", "/financial/payment-methods", "/financial/movements", "/financial/sales",
-    "/subscriptions/changes", "/subscriptions/cancelled", "/subscriptions/transactions", "/subscriptions/count", "/subscriptions/new-sales", "/subscriptions/by-origin",
-    "/clients/frequency", "/clients/appointments", "/clients/product-purchases", "/clients/by-service", "/clients/by-period-service",
-    "/marketing/birthdays", "/marketing/ratings", "/marketing/acquisition", "/marketing/inactive", "/marketing/no-preference", "/marketing/waitlist", "/marketing/new-clients",
-    "/professional/product-commissions", "/professional/service-commissions", "/professional/documents", "/professional/avg-ticket-client", "/professional/avg-ticket-service"
-  ];
-  for (const path of paths) {
-    r.get(path, async (req, res) => {
-      const start = String(req.query.startDate ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
-      const end = String(req.query.endDate ?? new Date().toISOString().slice(0, 10));
-      const payload = { period: { start, end }, filters: { branchId: req.query.branchId ?? "all", barberId: req.query.barberId ?? "all" }, summary: {}, chart: [], table: [], totals: {} };
-      if (req.query.format === "csv") return res.type("text/csv").send("metric,value\nrecords,0\n");
-      if (req.query.format === "pdf") throw new AppError(501, "PDF_EXPORT_NOT_CONFIGURED", "Configure um gerador de PDF para exportar relatórios");
-      return ok(res, payload);
-    });
+
+  function parsePeriod(req: any) {
+    const now = new Date();
+    const start = req.query.startDate ? new Date(String(req.query.startDate)) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = req.query.endDate ? new Date(String(req.query.endDate) + "T23:59:59") : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    return { start, end, startStr: start.toISOString().slice(0, 10), endStr: end.toISOString().slice(0, 10) };
   }
+
+  function branchFilter(req: any) {
+    const bId = req.query.branchId;
+    return bId && bId !== "all" ? { branchId: bId } : {};
+  }
+
+  function barberFilter(req: any) {
+    const bId = req.query.barberId;
+    return bId && bId !== "all" ? { barberId: bId } : {};
+  }
+
+  async function generatePdf(res: any, title: string, table: any[], summary: Record<string, any>) {
+    const PDFDocument = (await import("pdfkit")).default;
+    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${title.toLowerCase().replace(/\s/g,"-")}.pdf"`);
+    doc.pipe(res);
+    doc.fontSize(18).font("Helvetica-Bold").text(`UpBarber — ${title}`, { align: "center" });
+    doc.fontSize(10).font("Helvetica").text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, { align: "center" });
+    doc.moveDown();
+    for (const [k, v] of Object.entries(summary)) {
+      doc.fontSize(11).font("Helvetica").text(`${k}: `, { continued: true }).font("Helvetica-Bold").text(String(v));
+    }
+    doc.moveDown();
+    if (table.length > 0) {
+      const cols = Object.keys(table[0]);
+      doc.fontSize(10).font("Helvetica-Bold").text(cols.join("   |   "));
+      doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+      for (const row of table.slice(0, 50)) {
+        doc.fontSize(9).font("Helvetica").text(cols.map(c => String(row[c] ?? "")).join("   |   "));
+      }
+    }
+    doc.end();
+  }
+
+  // Financial: Revenue
+  r.get("/financial/revenue", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const transactions = await prisma.financialTransaction.findMany({
+      where: { barbershopId: bId, ...branchFilter(req), type: "income", date: { gte: start, lte: end } }
+    });
+    const byDay: Record<string, number> = {};
+    for (const t of transactions) {
+      const day = t.date.toISOString().slice(0, 10);
+      byDay[day] = (byDay[day] || 0) + Number(t.amount);
+    }
+    const chart = Object.entries(byDay).sort().map(([date, value]) => ({ date, value }));
+    const total = transactions.reduce((s, t) => s + Number(t.amount), 0);
+    const payload = { period: { start: startStr, end: endStr }, summary: { total, count: transactions.length }, chart, table: chart, totals: { revenue: total } };
+    if (req.query.format === "pdf") return generatePdf(res, "Receita por Período", chart, { Total: `R$ ${total.toFixed(2)}`, Transações: transactions.length });
+    if (req.query.format === "csv") return res.type("text/csv").send(["data,valor", ...chart.map(r => `${r.date},${r.value}`)].join("\n"));
+    return ok(res, payload);
+  });
+
+  // Financial: Payment methods
+  r.get("/financial/payment-methods", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const transactions = await prisma.financialTransaction.findMany({
+      where: { barbershopId: bId, ...branchFilter(req), date: { gte: start, lte: end } }
+    });
+    const byMethod: Record<string, { count: number; total: number }> = {};
+    for (const t of transactions) {
+      const m = t.paymentMethod ?? "Outro";
+      if (!byMethod[m]) byMethod[m] = { count: 0, total: 0 };
+      byMethod[m].count++;
+      byMethod[m].total += Number(t.amount);
+    }
+    const table = Object.entries(byMethod).map(([method, d]) => ({ method, count: d.count, total: d.total.toFixed(2) }));
+    const payload = { period: { start: startStr, end: endStr }, summary: { methods: table.length }, chart: table, table, totals: {} };
+    if (req.query.format === "pdf") return generatePdf(res, "Formas de Pagamento", table, {});
+    if (req.query.format === "csv") return res.type("text/csv").send(["forma,quantidade,total", ...table.map(r => `${r.method},${r.count},${r.total}`)].join("\n"));
+    return ok(res, payload);
+  });
+
+  // Financial: Movements
+  r.get("/financial/movements", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const transactions = await prisma.financialTransaction.findMany({
+      where: { barbershopId: bId, ...branchFilter(req), date: { gte: start, lte: end } },
+      orderBy: { date: "desc" }, take: 200
+    });
+    const table = transactions.map(t => ({ data: t.date.toISOString().slice(0, 10), tipo: t.type, categoria: t.category, descricao: t.description ?? "", valor: Number(t.amount).toFixed(2), forma: t.paymentMethod ?? "" }));
+    const payload = { period: { start: startStr, end: endStr }, summary: { total: transactions.length }, chart: [], table, totals: {} };
+    if (req.query.format === "pdf") return generatePdf(res, "Movimentações Financeiras", table, { Total: transactions.length });
+    if (req.query.format === "csv") return res.type("text/csv").send(["data,tipo,categoria,descricao,valor,forma", ...table.map(r => Object.values(r).map(v => JSON.stringify(v)).join(","))].join("\n"));
+    return ok(res, payload);
+  });
+
+  // Financial: Sales
+  r.get("/financial/sales", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const orders = await prisma.order.findMany({
+      where: { barbershopId: bId, ...branchFilter(req), status: "closed", closedAt: { gte: start, lte: end } },
+      include: { items: { include: { product: { select: { name: true } } } } }
+    });
+    const total = orders.reduce((s, o) => s + Number(o.total), 0);
+    const table = orders.map(o => ({ comanda: o.id.slice(-6), itens: o.items.length, total: Number(o.total).toFixed(2), forma: o.paymentMethod ?? "", data: (o.closedAt ?? o.createdAt).toISOString().slice(0, 10) }));
+    const payload = { period: { start: startStr, end: endStr }, summary: { total, orders: orders.length }, chart: [], table, totals: { total } };
+    if (req.query.format === "pdf") return generatePdf(res, "Vendas", table, { Total: `R$ ${total.toFixed(2)}`, Comandas: orders.length });
+    if (req.query.format === "csv") return res.type("text/csv").send(["comanda,itens,total,forma,data", ...table.map(r => Object.values(r).join(","))].join("\n"));
+    return ok(res, payload);
+  });
+
+  // Subscriptions: Count
+  r.get("/subscriptions/count", async (req, res) => {
+    const bId = tenantId(req);
+    const [active, trial, suspended, cancelled, overdue] = await Promise.all([
+      prisma.clientSubscription.count({ where: { barbershopId: bId, status: "active" } }),
+      prisma.clientSubscription.count({ where: { barbershopId: bId, status: "trial" } }),
+      prisma.clientSubscription.count({ where: { barbershopId: bId, status: "suspended" } }),
+      prisma.clientSubscription.count({ where: { barbershopId: bId, status: "cancelled" } }),
+      prisma.clientSubscription.count({ where: { barbershopId: bId, status: "overdue" } }),
+    ]);
+    return ok(res, { period: {}, summary: { active, trial, suspended, cancelled, overdue, total: active + trial + suspended + cancelled + overdue }, chart: [], table: [], totals: { active } });
+  });
+
+  // Subscriptions: Transactions
+  r.get("/subscriptions/transactions", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const payments = await prisma.subscriptionPayment.findMany({
+      where: { barbershopId: bId, dueDate: { gte: start, lte: end } },
+      include: { client: { select: { name: true } }, subscription: { include: { plan: { select: { name: true } } } } },
+      orderBy: { dueDate: "desc" }, take: 200
+    });
+    const total = payments.filter(p => p.status === "paid").reduce((s, p) => s + Number(p.amount), 0);
+    const table = payments.map(p => ({ cliente: p.client.name, plano: p.subscription.plan.name, valor: Number(p.amount).toFixed(2), status: p.status, vencimento: p.dueDate.toISOString().slice(0, 10) }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { total, count: payments.length }, chart: [], table, totals: { total } });
+  });
+
+  // Subscriptions: New sales
+  r.get("/subscriptions/new-sales", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const subs = await prisma.clientSubscription.findMany({
+      where: { barbershopId: bId, createdAt: { gte: start, lte: end } },
+      include: { client: { select: { name: true } }, plan: { select: { name: true } } },
+      orderBy: { createdAt: "desc" }
+    });
+    const table = subs.map(s => ({ cliente: s.client.name, plano: s.plan.name, valor: Number(s.price).toFixed(2), status: s.status, data: s.createdAt.toISOString().slice(0, 10) }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { total: subs.length }, chart: [], table, totals: { count: subs.length } });
+  });
+
+  // Subscriptions: Cancelled
+  r.get("/subscriptions/cancelled", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const subs = await prisma.clientSubscription.findMany({
+      where: { barbershopId: bId, status: "cancelled", cancelledAt: { gte: start, lte: end } },
+      include: { client: { select: { name: true } }, plan: { select: { name: true } } }
+    });
+    const table = subs.map(s => ({ cliente: s.client.name, plano: s.plan.name, data_cancelamento: (s.cancelledAt ?? s.updatedAt).toISOString().slice(0, 10) }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { total: subs.length }, chart: [], table, totals: { cancelled: subs.length } });
+  });
+
+  // Subscriptions: Changes
+  r.get("/subscriptions/changes", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const [active, cancelled] = await Promise.all([
+      prisma.clientSubscription.count({ where: { barbershopId: bId, createdAt: { gte: start, lte: end } } }),
+      prisma.clientSubscription.count({ where: { barbershopId: bId, status: "cancelled", cancelledAt: { gte: start, lte: end } } }),
+    ]);
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { novas: active, canceladas: cancelled, churn: cancelled }, chart: [], table: [], totals: {} });
+  });
+
+  // Subscriptions: By origin
+  r.get("/subscriptions/by-origin", async (req, res) => {
+    const bId = tenantId(req);
+    const subs = await prisma.clientSubscription.findMany({ where: { barbershopId: bId }, include: { plan: { select: { name: true } } } });
+    const byPlan: Record<string, number> = {};
+    for (const s of subs) { byPlan[s.plan.name] = (byPlan[s.plan.name] || 0) + 1; }
+    const table = Object.entries(byPlan).map(([plano, count]) => ({ plano, count }));
+    return ok(res, { summary: { total: subs.length }, chart: table, table, totals: {} });
+  });
+
+  // Clients: Frequency
+  r.get("/clients/frequency", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const appointments = await prisma.appointment.findMany({
+      where: { barbershopId: bId, date: { gte: start, lte: end }, status: "completed" },
+      include: { client: { select: { name: true } } }
+    });
+    const byClient: Record<string, { name: string; count: number }> = {};
+    for (const a of appointments) {
+      if (!byClient[a.clientId]) byClient[a.clientId] = { name: a.client.name, count: 0 };
+      byClient[a.clientId].count++;
+    }
+    const table = Object.entries(byClient).map(([id, d]) => ({ id, cliente: d.name, visitas: d.count })).sort((a, b) => b.visitas - a.visitas);
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { totalClients: table.length }, chart: table.slice(0, 20), table: table.slice(0, 100), totals: {} });
+  });
+
+  // Clients: Appointments
+  r.get("/clients/appointments", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const clients = await prisma.client.findMany({
+      where: { barbershopId: bId },
+      select: { id: true, name: true, totalVisits: true, totalSpent: true, lastVisitAt: true }
+    });
+    const table = clients.map(c => ({ cliente: c.name, visitas: c.totalVisits, gasto_total: Number(c.totalSpent).toFixed(2), ultima_visita: c.lastVisitAt?.toISOString().slice(0, 10) ?? "—" }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { total: clients.length }, chart: [], table, totals: {} });
+  });
+
+  // Clients: By service
+  r.get("/clients/by-service", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const appointments = await prisma.appointment.findMany({
+      where: { barbershopId: bId, date: { gte: start, lte: end }, status: "completed" },
+      include: { service: { select: { name: true } } }
+    });
+    const byService: Record<string, { name: string; count: number; revenue: number }> = {};
+    for (const a of appointments) {
+      const n = a.service.name;
+      if (!byService[n]) byService[n] = { name: n, count: 0, revenue: 0 };
+      byService[n].count++;
+      byService[n].revenue += Number(a.price);
+    }
+    const table = Object.values(byService).sort((a, b) => b.count - a.count);
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { services: table.length }, chart: table, table, totals: {} });
+  });
+
+  // Clients: Product purchases
+  r.get("/clients/product-purchases", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const items = await prisma.orderItem.findMany({
+      where: { order: { barbershopId: bId, status: "closed", closedAt: { gte: start, lte: end } } },
+      include: { product: { select: { name: true } }, order: { select: { closedAt: true } } }
+    });
+    const byProduct: Record<string, { name: string; count: number; revenue: number }> = {};
+    for (const i of items) {
+      const n = i.product.name;
+      if (!byProduct[n]) byProduct[n] = { name: n, count: 0, revenue: 0 };
+      byProduct[n].count += i.quantity;
+      byProduct[n].revenue += Number(i.total);
+    }
+    const table = Object.values(byProduct).sort((a, b) => b.count - a.count);
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { products: table.length }, chart: table, table, totals: {} });
+  });
+
+  // Clients: By period service
+  r.get("/clients/by-period-service", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const appts = await prisma.appointment.findMany({
+      where: { barbershopId: bId, date: { gte: start, lte: end }, status: "completed" },
+      select: { date: true, serviceId: true, service: { select: { name: true } } }
+    });
+    const byWeek: Record<string, Record<string, number>> = {};
+    for (const a of appts) {
+      const week = a.date.toISOString().slice(0, 10);
+      if (!byWeek[week]) byWeek[week] = {};
+      byWeek[week][a.service.name] = (byWeek[week][a.service.name] || 0) + 1;
+    }
+    const chart = Object.entries(byWeek).sort().map(([date, services]) => ({ date, ...services }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: {}, chart, table: chart, totals: {} });
+  });
+
+  // Marketing: Birthdays
+  r.get("/marketing/birthdays", async (req, res) => {
+    const bId = tenantId(req);
+    const now = new Date();
+    const clients = await prisma.client.findMany({ where: { barbershopId: bId, birthdate: { not: null }, isActive: true }, select: { id: true, name: true, phone: true, birthdate: true } });
+    const upcoming = clients
+      .map(c => { const bd = new Date(c.birthdate!); const next = new Date(now.getFullYear(), bd.getMonth(), bd.getDate()); if (next < now) next.setFullYear(now.getFullYear() + 1); return { ...c, nextBirthday: next.toISOString().slice(0, 10), daysUntil: Math.ceil((next.getTime() - now.getTime()) / 86400000) }; })
+      .filter(c => c.daysUntil <= 30)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+    return ok(res, { summary: { total: upcoming.length }, chart: [], table: upcoming, totals: {} });
+  });
+
+  // Marketing: New clients
+  r.get("/marketing/new-clients", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const clients = await prisma.client.findMany({ where: { barbershopId: bId, createdAt: { gte: start, lte: end } }, orderBy: { createdAt: "desc" } });
+    const table = clients.map(c => ({ nome: c.name, telefone: c.phone ?? "—", data: c.createdAt.toISOString().slice(0, 10) }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { total: clients.length }, chart: [], table, totals: { novos: clients.length } });
+  });
+
+  // Marketing: Inactive
+  r.get("/marketing/inactive", async (req, res) => {
+    const bId = tenantId(req);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    const clients = await prisma.client.findMany({ where: { barbershopId: bId, isActive: true, OR: [{ lastVisitAt: { lt: cutoff } }, { lastVisitAt: null }] }, select: { id: true, name: true, phone: true, lastVisitAt: true } });
+    const table = clients.map(c => ({ nome: c.name, telefone: c.phone ?? "—", ultima_visita: c.lastVisitAt?.toISOString().slice(0, 10) ?? "Nunca" }));
+    return ok(res, { summary: { total: clients.length }, chart: [], table, totals: { inativos: clients.length } });
+  });
+
+  // Marketing: Ratings
+  r.get("/marketing/ratings", async (req, res) => {
+    const bId = tenantId(req);
+    const barbers = await prisma.barber.findMany({ where: { barbershopId: bId, isActive: true }, select: { name: true, rating: true, totalCuts: true } });
+    const table = barbers.map(b => ({ barbeiro: b.name, avaliacao: Number(b.rating).toFixed(1), atendimentos: b.totalCuts }));
+    return ok(res, { summary: { avg: barbers.length ? (barbers.reduce((s, b) => s + Number(b.rating), 0) / barbers.length).toFixed(1) : 0 }, chart: table, table, totals: {} });
+  });
+
+  // Marketing: Acquisition, No-preference, Waitlist (simplified)
+  for (const path of ["/marketing/acquisition", "/marketing/no-preference", "/marketing/waitlist"]) {
+    r.get(path, async (_req, res) => ok(res, { summary: {}, chart: [], table: [], totals: {} }));
+  }
+
+  // Professional: Service commissions
+  r.get("/professional/service-commissions", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const bf = barberFilter(req);
+    const appointments = await prisma.appointment.findMany({
+      where: { barbershopId: bId, ...bf, status: "completed", date: { gte: start, lte: end } },
+      include: { barber: { select: { name: true, commissionPercent: true } }, service: { select: { name: true, commissionPercent: true } } }
+    });
+    const byBarber: Record<string, { name: string; count: number; revenue: number; commission: number }> = {};
+    for (const a of appointments) {
+      const n = a.barber.name;
+      if (!byBarber[n]) byBarber[n] = { name: n, count: 0, revenue: 0, commission: 0 };
+      const pct = Number(a.service.commissionPercent) || Number(a.barber.commissionPercent) || 0;
+      byBarber[n].count++;
+      byBarber[n].revenue += Number(a.price);
+      byBarber[n].commission += Number(a.price) * pct / 100;
+    }
+    const table = Object.values(byBarber).map(b => ({ barbeiro: b.name, atendimentos: b.count, receita: b.revenue.toFixed(2), comissao: b.commission.toFixed(2) }));
+    if (req.query.format === "pdf") return generatePdf(res, "Comissões por Serviço", table, { Total: `R$ ${table.reduce((s, r) => s + Number(r.comissao), 0).toFixed(2)}` });
+    if (req.query.format === "csv") return res.type("text/csv").send(["barbeiro,atendimentos,receita,comissao", ...table.map(r => Object.values(r).join(","))].join("\n"));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { total: table.reduce((s, r) => s + Number(r.comissao), 0) }, chart: table, table, totals: {} });
+  });
+
+  // Professional: Product commissions
+  r.get("/professional/product-commissions", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const orders = await prisma.order.findMany({
+      where: { barbershopId: bId, status: "closed", closedAt: { gte: start, lte: end }, barberId: { not: null } },
+      include: { barber: { select: { name: true, commissionPercent: true } }, items: { include: { product: { select: { costPrice: true } } } } }
+    });
+    const byBarber: Record<string, { name: string; revenue: number; commission: number }> = {};
+    for (const o of orders) {
+      if (!o.barber) continue;
+      const n = o.barber.name;
+      if (!byBarber[n]) byBarber[n] = { name: n, revenue: 0, commission: 0 };
+      byBarber[n].revenue += Number(o.total);
+      byBarber[n].commission += Number(o.total) * Number(o.barber.commissionPercent) / 100;
+    }
+    const table = Object.values(byBarber).map(b => ({ barbeiro: b.name, receita: b.revenue.toFixed(2), comissao: b.commission.toFixed(2) }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { total: table.reduce((s, r) => s + Number(r.comissao), 0) }, chart: table, table, totals: {} });
+  });
+
+  // Professional: Avg ticket per client
+  r.get("/professional/avg-ticket-client", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const transactions = await prisma.financialTransaction.findMany({
+      where: { barbershopId: bId, type: "income", date: { gte: start, lte: end } }
+    });
+    const total = transactions.reduce((s, t) => s + Number(t.amount), 0);
+    const uniqueClients = new Set(transactions.map(t => t.category)).size;
+    return ok(res, { period: { start: startStr, end: endStr }, summary: { avgTicket: uniqueClients ? (total / transactions.length).toFixed(2) : 0 }, chart: [], table: [], totals: {} });
+  });
+
+  // Professional: Avg ticket per service
+  r.get("/professional/avg-ticket-service", async (req, res) => {
+    const { start, end, startStr, endStr } = parsePeriod(req);
+    const bId = tenantId(req);
+    const appts = await prisma.appointment.findMany({
+      where: { barbershopId: bId, date: { gte: start, lte: end }, status: "completed" },
+      include: { service: { select: { name: true } } }
+    });
+    const byService: Record<string, { name: string; total: number; count: number }> = {};
+    for (const a of appts) {
+      const n = a.service.name;
+      if (!byService[n]) byService[n] = { name: n, total: 0, count: 0 };
+      byService[n].total += Number(a.price);
+      byService[n].count++;
+    }
+    const table = Object.values(byService).map(s => ({ servico: s.name, ticket_medio: (s.total / s.count).toFixed(2), atendimentos: s.count }));
+    return ok(res, { period: { start: startStr, end: endStr }, summary: {}, chart: table, table, totals: {} });
+  });
+
+  // Professional: Documents
+  r.get("/professional/documents", async (req, res) => {
+    const bId = tenantId(req);
+    const reports = await prisma.commissionReport.findMany({
+      where: { barbershopId: bId }, include: { barber: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 100
+    });
+    const table = reports.map(r => ({ barbeiro: r.barber.name, periodo: r.period, comissao: Number(r.totalCommission).toFixed(2), pago: r.isPaid ? "Sim" : "Não", data_pagamento: r.paidAt?.toISOString().slice(0, 10) ?? "—" }));
+    return ok(res, { summary: { total: reports.length }, chart: [], table, totals: {} });
+  });
+
   return r;
 }

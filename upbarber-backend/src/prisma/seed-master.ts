@@ -23,10 +23,50 @@ async function main() {
     });
   }
 
+  const MODULES_BASE = ["agenda", "clientes", "barbeiros", "servicos", "financeiro", "caixa", "relatorios", "configuracoes", "notificacoes", "suporte", "saas-planos"];
+  const MODULES_SUBSCRIPTION = [...MODULES_BASE, "assinaturas", "planos", "assinantes", "pagamentos-assinatura"];
+  const MODULES_FULL = [...MODULES_SUBSCRIPTION, "produtos", "estoque", "comandas", "whatsapp", "campanhas"];
+  const MODULES_NORMAL_FULL = [...MODULES_BASE, "produtos", "estoque", "comandas", "whatsapp", "campanhas"];
+
   const plans = [
-    { name: "Starter", slug: "starter", price: 99, annualPrice: 79, maxFiliais: 1, maxBarbers: 2, maxClients: 500, storageGb: 1, color: "#6B7280", icon: "zap", sortOrder: 1, features: ["1 filial", "2 barbeiros", "Agenda básica", "Relatórios simples", "WhatsApp manual", "Suporte por email"] },
-    { name: "Pro", slug: "pro", price: 199, annualPrice: 159, maxFiliais: 3, maxBarbers: 10, maxClients: 2000, storageGb: 10, color: "#8B5CF6", icon: "rocket", sortOrder: 2, features: ["3 filiais", "10 barbeiros", "Agenda completa", "Relatórios avançados", "WhatsApp automático", "Clube de assinantes", "Suporte prioritário", "Comissões automáticas"] },
-    { name: "Business", slug: "business", price: 349, annualPrice: 279, maxFiliais: 99, maxBarbers: null, maxClients: null, storageGb: 100, color: "#F59E0B", icon: "crown", sortOrder: 3, features: ["Filiais ilimitadas", "Barbeiros ilimitados", "Multi-unidade", "API access", "Relatórios customizados", "WhatsApp + campanhas", "Gestor de grupos", "SLA 4h", "Onboarding dedicado"] }
+    // --- Barbearia Normal ---
+    {
+      name: "Essencial", slug: "essencial", price: 89, annualPrice: 69, maxFiliais: 1, maxBarbers: 3, maxClients: 300, storageGb: 1,
+      color: "#6B7280", icon: "zap", sortOrder: 1, modality: "normal",
+      defaultModules: [...MODULES_BASE, "produtos", "estoque", "comandas"],
+      features: ["1 filial", "3 barbeiros", "Agenda completa", "Clientes e histórico", "Caixa do dia", "Comandas", "Estoque básico", "Relatórios simples", "Suporte por email"]
+    },
+    {
+      name: "Profissional", slug: "profissional", price: 169, annualPrice: 139, maxFiliais: 3, maxBarbers: 10, maxClients: 1500, storageGb: 10,
+      color: "#8B5CF6", icon: "rocket", sortOrder: 2, modality: "normal",
+      defaultModules: MODULES_NORMAL_FULL,
+      features: ["3 filiais", "10 barbeiros", "Tudo do Essencial", "Estoque avançado", "Comissões automáticas", "WhatsApp manual", "Campanhas", "Relatórios avançados", "Suporte prioritário"]
+    },
+    {
+      name: "Premium", slug: "premium", price: 299, annualPrice: 239, maxFiliais: 99, maxBarbers: null, maxClients: null, storageGb: 100,
+      color: "#F59E0B", icon: "crown", sortOrder: 3, modality: "normal",
+      defaultModules: MODULES_NORMAL_FULL,
+      features: ["Filiais ilimitadas", "Barbeiros ilimitados", "Tudo do Profissional", "Multi-unidade", "API access", "Relatórios customizados", "WhatsApp + campanhas avançadas", "SLA 4h", "Onboarding dedicado"]
+    },
+    // --- Barbearia por Assinatura ---
+    {
+      name: "Clube Starter", slug: "clube-starter", price: 129, annualPrice: 99, maxFiliais: 1, maxBarbers: 3, maxClients: 300, storageGb: 1,
+      color: "#10B981", icon: "zap", sortOrder: 4, modality: "subscription",
+      defaultModules: MODULES_SUBSCRIPTION,
+      features: ["1 filial", "3 barbeiros", "Clube de assinantes", "Planos de assinatura", "Controle de mensalidades", "Agenda com assinantes", "Relatórios de assinatura", "Suporte por email"]
+    },
+    {
+      name: "Clube Pro", slug: "clube-pro", price: 229, annualPrice: 189, maxFiliais: 3, maxBarbers: 10, maxClients: 2000, storageGb: 10,
+      color: "#6366F1", icon: "rocket", sortOrder: 5, modality: "subscription",
+      defaultModules: MODULES_FULL,
+      features: ["3 filiais", "10 barbeiros", "Tudo do Clube Starter", "Comandas", "Estoque", "WhatsApp automático para assinantes", "Controle de churn", "Comissões", "Suporte prioritário"]
+    },
+    {
+      name: "Clube Business", slug: "clube-business", price: 399, annualPrice: 319, maxFiliais: 99, maxBarbers: null, maxClients: null, storageGb: 100,
+      color: "#F59E0B", icon: "crown", sortOrder: 6, modality: "subscription",
+      defaultModules: MODULES_FULL,
+      features: ["Filiais ilimitadas", "Assinantes ilimitados", "Tudo do Clube Pro", "Pipeline de assinantes", "Campanhas de retenção", "API access", "Relatórios customizados", "Onboarding dedicado", "SLA 4h"]
+    },
   ];
 
   for (const plan of plans) {

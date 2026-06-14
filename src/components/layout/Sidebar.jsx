@@ -7,64 +7,66 @@ import {
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { useModules } from '../../context/ModulesContext';
 import { canAccessPath } from '../../utils/access';
 import { COMPANY } from '../../constants/company';
 
 const navGroups = [
   {
     label: null,
-    items: [{ to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' }]
+    items: [{ to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', module: null }]
   },
   {
     label: 'Atendimento',
     items: [
-      { to: '/agenda', icon: CalendarDays, label: 'Agenda' },
-      { to: '/clientes', icon: Users, label: 'Clientes' },
-      { to: '/barbeiros', icon: Scissors, label: 'Barbeiros' },
-      { to: '/servicos', icon: Star, label: 'Serviços' },
+      { to: '/agenda',    icon: CalendarDays, label: 'Agenda',    module: 'agenda' },
+      { to: '/clientes',  icon: Users,        label: 'Clientes',  module: 'clientes' },
+      { to: '/barbeiros', icon: Scissors,     label: 'Barbeiros', module: 'barbeiros' },
+      { to: '/servicos',  icon: Star,         label: 'Serviços',  module: 'servicos' },
     ]
   },
   {
-    label: 'Assinaturas',
+    label: 'Clube de Assinaturas',
     items: [
-      { to: '/planos', icon: Crown, label: 'Planos' },
-      { to: '/assinantes', icon: Users, label: 'Assinantes' },
-      { to: '/assinaturas', icon: CreditCard, label: 'Controle' },
+      { to: '/planos',                 icon: Crown,      label: 'Planos',       module: 'planos' },
+      { to: '/assinantes',             icon: Users,      label: 'Assinantes',   module: 'assinantes' },
+      { to: '/assinaturas',            icon: CreditCard, label: 'Controle',     module: 'assinaturas' },
+      { to: '/pagamentos-assinatura',  icon: CreditCard, label: 'Pagamentos',   module: 'pagamentos-assinatura' },
     ]
   },
   {
     label: 'Loja',
     items: [
-      { to: '/produtos', icon: Package, label: 'Produtos' },
-      { to: '/estoque', icon: ShoppingCart, label: 'Estoque' },
-      { to: '/comandas', icon: FileText, label: 'Comandas' },
+      { to: '/produtos', icon: Package,     label: 'Produtos', module: 'produtos' },
+      { to: '/estoque',  icon: ShoppingCart, label: 'Estoque', module: 'estoque' },
+      { to: '/comandas', icon: FileText,    label: 'Comandas', module: 'comandas' },
     ]
   },
   {
     label: 'Financeiro',
     items: [
-      { to: '/financeiro', icon: BarChart3, label: 'Financeiro' },
-      { to: '/caixa', icon: CreditCard, label: 'Caixa do Dia' },
+      { to: '/financeiro', icon: BarChart3,  label: 'Financeiro',   module: 'financeiro' },
+      { to: '/caixa',      icon: CreditCard, label: 'Caixa do Dia', module: 'caixa' },
     ]
   },
   {
     label: 'Relatórios',
-    items: [{ to: '/relatorios', icon: FileText, label: 'Relatórios' }]
+    items: [{ to: '/relatorios', icon: FileText, label: 'Relatórios', module: 'relatorios' }]
   },
   {
     label: 'Automação',
     items: [
-      { to: '/whatsapp', icon: MessageCircle, label: 'WhatsApp' },
-      { to: '/campanhas', icon: Zap, label: 'Campanhas' },
+      { to: '/whatsapp',  icon: MessageCircle, label: 'WhatsApp',  module: 'whatsapp' },
+      { to: '/campanhas', icon: Zap,           label: 'Campanhas', module: 'campanhas' },
     ]
   },
   {
     label: 'Sistema',
     items: [
-      { to: '/configuracoes', icon: Settings, label: 'Configurações' },
-      { to: '/notificacoes', icon: Bell, label: 'Notificações' },
-      { to: '/suporte', icon: HelpCircle, label: 'Suporte' },
-      { to: '/saas-planos', icon: Crown, label: 'Meu Plano' },
+      { to: '/configuracoes', icon: Settings,   label: 'Configurações', module: null },
+      { to: '/notificacoes',  icon: Bell,       label: 'Notificações',  module: null },
+      { to: '/suporte',       icon: HelpCircle, label: 'Suporte',       module: null },
+      { to: '/saas-planos',   icon: Crown,      label: 'Meu Plano',     module: null },
     ]
   }
 ];
@@ -72,6 +74,7 @@ const navGroups = [
 export function Sidebar() {
   const { sidebarOpen, setSidebarOpen } = useApp();
   const { logout, user, barbershop } = useAuth();
+  const { hasModule } = useModules();
   const navigate = useNavigate();
 
   const handleLogout = () => logout();
@@ -94,7 +97,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-        {navGroups.map(group => ({ ...group, items: group.items.filter(item => canAccessPath(user?.role, item.to)) }))
+        {navGroups.map(group => ({ ...group, items: group.items.filter(item => canAccessPath(user?.role, item.to) && (item.module === null || hasModule(item.module))) }))
           .filter(group => group.items.length > 0)
           .map((group, gi) => (
           <div key={gi}>

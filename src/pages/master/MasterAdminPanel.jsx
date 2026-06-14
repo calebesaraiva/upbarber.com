@@ -28,6 +28,9 @@ import {
   suspendBarbershop,
   reactivateBarbershop,
   impersonateBarbershop,
+  getBarbershopModules,
+  updateBarbershopModules,
+  updatePlanModality,
   getMasterInvoiceSummary,
   getMasterInvoices,
   chargeInvoice,
@@ -336,6 +339,88 @@ function DashboardSection() {
   );
 }
 
+// ─── Componente: Gerenciador de Módulos por Barbearia ─────────────────────────
+const ALL_MODULES_CONFIG = [
+  { key: "agenda",                label: "Agenda",              group: "Atendimento" },
+  { key: "clientes",              label: "Clientes",            group: "Atendimento" },
+  { key: "barbeiros",             label: "Barbeiros",           group: "Atendimento" },
+  { key: "servicos",              label: "Serviços",            group: "Atendimento" },
+  { key: "planos",                label: "Planos de Assinatura",group: "Clube" },
+  { key: "assinantes",            label: "Assinantes",          group: "Clube" },
+  { key: "assinaturas",           label: "Controle de Assinaturas", group: "Clube" },
+  { key: "pagamentos-assinatura", label: "Pagamentos",          group: "Clube" },
+  { key: "produtos",              label: "Produtos",            group: "Loja" },
+  { key: "estoque",               label: "Estoque",             group: "Loja" },
+  { key: "comandas",              label: "Comandas",            group: "Loja" },
+  { key: "financeiro",            label: "Financeiro",          group: "Financeiro" },
+  { key: "caixa",                 label: "Caixa do Dia",        group: "Financeiro" },
+  { key: "relatorios",            label: "Relatórios",          group: "Relatórios" },
+  { key: "whatsapp",              label: "WhatsApp",            group: "Automação" },
+  { key: "campanhas",             label: "Campanhas",           group: "Automação" },
+];
+const MODULE_GROUPS = [...new Set(ALL_MODULES_CONFIG.map(m => m.group))];
+
+function ModulesEditor({ barbershopId, P }) {
+  const [data, setData] = useState(null);
+  const [enabled, setEnabled] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!barbershopId) return;
+    getBarbershopModules(barbershopId).then(r => {
+      const d = r.data?.data ?? r.data;
+      setData(d);
+      const mods = Array.isArray(d?.enabledModules) && d.enabledModules.length > 0
+        ? d.enabledModules
+        : ALL_MODULES_CONFIG.map(m => m.key);
+      setEnabled(mods);
+    }).catch(() => setEnabled(ALL_MODULES_CONFIG.map(m => m.key)));
+  }, [barbershopId]);
+
+  const toggle = (key) => setEnabled(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await updateBarbershopModules(barbershopId, { enabledModules: enabled });
+      setSaved(true); setTimeout(() => setSaved(false), 2000);
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div style={{ borderTop: `1px solid ${P.border}`, paddingTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div>
+          <div style={{ color: P.text, fontWeight: 700, fontSize: 14 }}>Módulos habilitados</div>
+          <div style={{ color: P.muted, fontSize: 12, marginTop: 2 }}>
+            {data?.masterSaasPlan ? `Plano: ${data.masterSaasPlan.name} (${data.masterSaasPlan.modality})` : "Configure quais funcionalidades esta barbearia pode acessar"}
+          </div>
+        </div>
+        <button onClick={save} disabled={saving} style={{ background: saved ? "#064E3B" : P.purple, color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          {saved ? <><Check size={12} /> Salvo</> : saving ? "Salvando..." : "Salvar módulos"}
+        </button>
+      </div>
+      {MODULE_GROUPS.map(group => (
+        <div key={group} style={{ marginBottom: 12 }}>
+          <div style={{ color: P.muted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>{group}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {ALL_MODULES_CONFIG.filter(m => m.group === group).map(m => {
+              const on = enabled.includes(m.key);
+              return (
+                <button key={m.key} onClick={() => toggle(m.key)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${on ? P.purple : P.border}`, background: on ? P.purple + "22" : "transparent", color: on ? P.purpleLight : P.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", transition: "all 0.15s" }}>
+                  {on ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SEÇÃO: BARBEARIAS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -640,6 +725,7 @@ function BarbeariasSection() {
                 </div>
               ))}
             </div>
+            <ModulesEditor barbershopId={selected?.id} P={P} />
             <div style={{ display: "flex", gap: 10, paddingTop: 8, borderTop: `1px solid ${P.border}` }}>
               <Btn icon={LogIn} onClick={() => { setModal(null); handleImpersonate(selected); }} small>Impersonar</Btn>
               {selected.email && (

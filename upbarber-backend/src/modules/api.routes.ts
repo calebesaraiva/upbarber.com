@@ -548,7 +548,19 @@ function buildFinancialRouter() {
     const transactions = await prisma.financialTransaction.findMany({ where: { barbershopId: tenantId(req), ...withBranch(req), date } });
     return ok(res, { ...financialSummary(transactions), transactions });
   });
-  r.get("/commissions", async (req, res) => ok(res, { barbers: [] }));
+  r.get("/commissions", async (req, res) => {
+    const bId = tenantId(req);
+    const barbers = await prisma.barber.findMany({
+      where: { barbershopId: bId, isActive: true, ...withBranch(req) },
+      include: { commissionReports: { orderBy: { createdAt: "desc" }, take: 1 } }
+    });
+    return ok(res, { barbers: barbers.map(b => ({
+      id: b.id,
+      name: b.name,
+      commissionPercent: Number(b.commissionPercent),
+      lastReport: b.commissionReports[0] ?? null,
+    })) });
+  });
   r.get("/transactions/:id", validate({ params: idParams }), async (req, res) => ok(res, await prisma.financialTransaction.findFirst({ where: { id: req.params.id, barbershopId: tenantId(req) } })));
   r.put("/transactions/:id", validate({ params: idParams, body: financialTransactionSchema.partial() }), async (req, res) => ok(res, await prisma.financialTransaction.update({ where: { id: req.params.id }, data: req.body })));
   r.delete("/transactions/:id", validate({ params: idParams }), async (req, res) => { await prisma.financialTransaction.update({ where: { id: req.params.id }, data: { status: "cancelled" } }); return noContent(res); });
@@ -561,11 +573,146 @@ function financialSummary(items: any[]) {
   return { totalIncome, totalExpense, profit: totalIncome - totalExpense, byCategory: countMoney(items, "category"), byPaymentMethod: countMoney(items, "paymentMethod"), byBarber: countMoney(items, "barberId"), byDay: countMoney(items, "date") };
 }
 
+function reportDateRange(period: string, ref?: string) {
+  const now = ref ? new Date(ref) : new Date();
+  if (period === "daily") {
+    const s = new Date(now); s.setHours(0, 0, 0, 0);
+    const e = new Date(now); e.setHours(23, 59, 59, 999);
+    return { start: s, end: e };
+  }
+  if (period === "weekly") {
+    const day = now.getDay();
+    const s = new Date(now); s.setDate(now.getDate() - day); s.setHours(0, 0, 0, 0);
+    const e = new Date(now); e.setDate(now.getDate() + (6 - day)); e.setHours(23, 59, 59, 999);
+    return { start: s, end: e };
+  }
+  if (period === "biweekly") {
+    const s = new Date(now); s.setDate(now.getDate() - 14); s.setHours(0, 0, 0, 0);
+    const e = new Date(now); e.setHours(23, 59, 59, 999);
+    return { start: s, end: e };
+  }
+  // monthly
+  const s = new Date(now.getFullYear(), now.getMonth(), 1);
+  const e = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start: s, end: e };
+}
+
+async function buildFullReport(req: any, period: string) {
+  const bId = tenantId(req);
+  const branch = withBranch(req);
+  const { start, end } = reportDateRange(period, req.query.date as string);
+
+  const [transactions, appointments, newClients] = await Promise.all([
+    prisma.financialTransaction.findMany({ where: { barbershopId: bId, ...branch, date: { gte: start, lte: end } } }),
+    prisma.appointment.findMany({ where: { barbershopId: bId, ...branch, date: { gte: start, lte: end } }, include: { barber: { select: { id: true, name: true } }, service: { select: { id: true, name: true } } } }),
+    prisma.client.count({ where: { barbershopId: bId, createdAt: { gte: start, lte: end } } }),
+  ]);
+
+  const revenue = financialSummary(transactions);
+
+  const barberMap: Record<string, { id: string; name: string; count: number; revenue: number }> = {};
+  const serviceMap: Record<string, { id: string; name: string; count: number; revenue: number }> = {};
+  const pmMap: Record<string, number> = {};
+
+  for (const a of appointments) {
+    if (!barberMap[a.barberId]) barberMap[a.barberId] = { id: a.barberId, name: a.barber.name, count: 0, revenue: 0 };
+    barberMap[a.barberId].count++;
+    barberMap[a.barberId].revenue += Number(a.price);
+    if (!serviceMap[a.serviceId]) serviceMap[a.serviceId] = { id: a.serviceId, name: a.service.name, count: 0, revenue: 0 };
+    serviceMap[a.serviceId].count++;
+    serviceMap[a.serviceId].revenue += Number(a.price);
+    pmMap[a.paymentMethod] = (pmMap[a.paymentMethod] || 0) + 1;
+  }
+
+  const activeClientsSet = new Set(appointments.map(a => a.clientId));
+
+  return {
+    period: { start, end, label: period },
+    revenue,
+    appointments: {
+      total: appointments.length,
+      completed: appointments.filter(a => a.status === "completed").length,
+      confirmed: appointments.filter(a => a.status === "confirmed").length,
+      cancelled: appointments.filter(a => a.status === "cancelled").length,
+      noShow: appointments.filter(a => a.status === "no_show").length,
+    },
+    clients: { active: activeClientsSet.size, new: newClients },
+    services: Object.values(serviceMap).sort((a, b) => b.count - a.count),
+    barbers: Object.values(barberMap).sort((a, b) => b.revenue - a.revenue),
+    paymentMethods: pmMap,
+    expenses: { total: revenue.totalExpense, byCategory: revenue.byCategory },
+    profit: revenue.profit,
+  };
+}
+
 function buildReportsRouter() {
   const r = Router();
-  const report = async (req: Express.Request) => financialSummary(await prisma.financialTransaction.findMany({ where: { barbershopId: tenantId(req) } }));
-  for (const path of ["/daily", "/weekly", "/biweekly", "/monthly"]) r.get(path, async (req, res) => ok(res, { period: { start: req.query.date ?? req.query.startDate ?? new Date(), end: new Date() }, revenue: await report(req), appointments: {}, clients: {}, services: [], barbers: [], products: [], paymentMethods: {}, expenses: {}, profit: 0 }));
-  r.get("/export/pdf", () => { throw new AppError(501, "PDF_EXPORT_NOT_CONFIGURED", "Configure um gerador de PDF para exportar relatórios"); });
+
+  r.get("/daily",    async (req, res) => ok(res, await buildFullReport(req, "daily")));
+  r.get("/weekly",   async (req, res) => ok(res, await buildFullReport(req, "weekly")));
+  r.get("/biweekly", async (req, res) => ok(res, await buildFullReport(req, "biweekly")));
+  r.get("/monthly",  async (req, res) => ok(res, await buildFullReport(req, "monthly")));
+
+  r.get("/export/pdf", async (req, res) => {
+    const period = String(req.query.period || "monthly");
+    const report = await buildFullReport(req, period);
+    const PDFDocument = (await import("pdfkit")).default;
+    const doc = new PDFDocument({ margin: 40, size: "A4" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="relatorio-${period}-${new Date().toISOString().slice(0,10)}.pdf"`);
+    doc.pipe(res);
+
+    // Header
+    doc.fontSize(20).font("Helvetica-Bold").text("UpBarber — Relatório Financeiro", { align: "center" });
+    doc.fontSize(10).font("Helvetica").text(`Período: ${period}  |  Gerado em: ${new Date().toLocaleString("pt-BR")}`, { align: "center" });
+    doc.moveDown();
+
+    // Summary
+    doc.fontSize(13).font("Helvetica-Bold").text("Resumo Financeiro");
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke(); doc.moveDown(0.3);
+    const rows = [
+      ["Receita Total", `R$ ${Number(report.revenue.totalIncome).toFixed(2)}`],
+      ["Despesas",      `R$ ${Number(report.revenue.totalExpense).toFixed(2)}`],
+      ["Lucro",         `R$ ${Number(report.profit).toFixed(2)}`],
+    ];
+    for (const [k, v] of rows) {
+      doc.fontSize(11).font("Helvetica").text(k, 40, doc.y, { continued: true }).font("Helvetica-Bold").text(v, { align: "right" });
+      doc.moveDown(0.3);
+    }
+    doc.moveDown();
+
+    // Appointments
+    doc.fontSize(13).font("Helvetica-Bold").text("Agendamentos");
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke(); doc.moveDown(0.3);
+    const appts = report.appointments as any;
+    doc.fontSize(11).font("Helvetica")
+      .text(`Total: ${appts.total}  |  Concluídos: ${appts.completed}  |  Cancelados: ${appts.cancelled}  |  No-show: ${appts.noShow}`);
+    doc.moveDown();
+
+    // Top Services
+    if ((report.services as any[]).length > 0) {
+      doc.fontSize(13).font("Helvetica-Bold").text("Top Serviços");
+      doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke(); doc.moveDown(0.3);
+      for (const s of (report.services as any[]).slice(0, 5)) {
+        doc.fontSize(11).font("Helvetica").text(`${s.name}`, { continued: true }).text(`${s.count}x  R$ ${s.revenue.toFixed(2)}`, { align: "right" });
+        doc.moveDown(0.3);
+      }
+      doc.moveDown();
+    }
+
+    // Top Barbeiros
+    if ((report.barbers as any[]).length > 0) {
+      doc.fontSize(13).font("Helvetica-Bold").text("Desempenho por Barbeiro");
+      doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke(); doc.moveDown(0.3);
+      for (const b of (report.barbers as any[])) {
+        doc.fontSize(11).font("Helvetica").text(`${b.name}  ${b.count} atend.`, { continued: true }).text(`R$ ${b.revenue.toFixed(2)}`, { align: "right" });
+        doc.moveDown(0.3);
+      }
+    }
+
+    doc.end();
+  });
+
   r.get("/export/csv", async (req, res) => {
     const rows = await prisma.financialTransaction.findMany({ where: { barbershopId: tenantId(req) }, orderBy: { date: "desc" } });
     const csv = ["data,tipo,categoria,descricao,valor,forma_pagamento", ...rows.map(row => [
@@ -610,12 +757,26 @@ function buildWhatsappRouter() {
     return ok(res, await prisma.whatsAppFlow.update({ where: { id: flow.id }, data: { isActive: !flow.isActive } }));
   });
   r.use("/campaigns", crudRouter({ prisma, model: "whatsAppCampaign", createSchema: z.object({ name: z.string(), message: z.string(), audience: z.enum(["all", "subscribers", "common", "inactive", "overdue"]), status: z.enum(["draft", "scheduled", "sending", "completed", "cancelled"]).optional(), scheduledAt: z.string().optional().nullable() }), searchFields: ["name"] }));
-  r.post("/campaigns/:id/send", validate({ params: idParams }), async () => {
-    throw new AppError(501, "CAMPAIGN_DISPATCH_NOT_CONFIGURED", "Configure o disparador real de campanhas antes de enviar");
+  r.post("/campaigns/:id/send", validate({ params: idParams }), async (req, res) => {
+    const campaign = await prisma.whatsAppCampaign.findFirstOrThrow({ where: { id: req.params.id, barbershopId: tenantId(req) } });
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        barbershopId: tenantId(req),
+        subject: `Solicitação de disparo de campanha: ${campaign.name}`,
+        message: `Olá! Gostaria de ativar o disparo da campanha "${campaign.name}" (ID: ${campaign.id}) com público: ${campaign.audience}. Por favor, entre em contato para realizarmos a implantação do WhatsApp e agendar o envio.`,
+        status: "open",
+        priority: "normal",
+      }
+    });
+    await prisma.whatsAppCampaign.update({ where: { id: req.params.id }, data: { status: "scheduled" } });
+    return ok(res, { ticket, message: "Chamado de suporte aberto. Nossa equipe entrará em contato para implantar o WhatsApp e agendar o disparo." });
   });
   r.post("/campaigns/:id/cancel", validate({ params: idParams }), async (req, res) => ok(res, await prisma.whatsAppCampaign.update({ where: { id: req.params.id }, data: { status: "cancelled" } })));
   r.get("/messages", async (_req, res) => ok(res, []));
-  r.get("/metrics", async (_req, res) => ok(res, { delivered: 0, read: 0, clicks: 0 }));
+  r.get("/metrics", async (req, res) => {
+    const conn = await prisma.whatsAppConnection.findUnique({ where: { barbershopId: tenantId(req) } });
+    return ok(res, { connected: conn?.status === "connected", status: conn?.status ?? "disconnected", delivered: 0, read: 0, clicks: 0 });
+  });
   return r;
 }
 

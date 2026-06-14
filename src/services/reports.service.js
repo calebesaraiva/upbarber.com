@@ -30,6 +30,9 @@ export const reportsService = {
   getDocuments: (p) => api.get(`${base}/professional/documents`, { params: p }),
   getAvgTicketClient: (p) => api.get(`${base}/professional/avg-ticket-client`, { params: p }),
   getAvgTicketService: (p) => api.get(`${base}/professional/avg-ticket-service`, { params: p }),
-  exportCsv: (type, params) => api.get(`${base}/${type}`, { params: { ...params, format:'csv' }, responseType:'blob' }),
-  exportPdf: (type, params) => api.get(`${base}/${type}`, { params: { ...params, format:'pdf' }, responseType:'blob' }),
+  exportCsv: (params) => api.get('/reports/export/csv', { params, responseType:'blob' }),
+  exportPdf: (params) => api.get('/reports/export/pdf', { params, responseType:'blob' }),
+  getReport: (period, params) => api.get(`/reports/${period}`, { params }),
+  exportAdvancedCsv: (type, params) => api.get(`${base}/${type}`, { params: { ...params, format:'csv' }, responseType:'blob' }),
+  exportAdvancedPdf: (type, params) => api.get(`${base}/${type}`, { params: { ...params, format:'pdf' }, responseType:'blob' }),
 };

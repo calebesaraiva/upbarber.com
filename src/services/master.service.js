@@ -57,3 +57,7 @@ export const getMasterConfig = () => masterApi.get(`${M}/config`);
 export const updateMasterConfig = (body) => masterApi.put(`${M}/config`, body);
 export const getMasterFlags = () => masterApi.get(`${M}/flags`);
 export const updateMasterFlag = (flagId, planId, body) => masterApi.patch(`${M}/flags/${flagId}/plan/${planId}`, body);
+
+export const getBarbershopModules = (id) => masterApi.get(`${M}/barbershops/${id}/modules`);
+export const updateBarbershopModules = (id, body) => masterApi.patch(`${M}/barbershops/${id}/modules`, body);
+export const updatePlanModality = (id, body) => masterApi.patch(`${M}/plans/${id}/modality`, body);

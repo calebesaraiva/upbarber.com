@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/AuthContext';
 import { BranchProvider } from './context/BranchContext';
+import { ModulesProvider } from './context/ModulesContext';
 import { Layout } from './components/layout/Layout';
 
 // Auth
@@ -79,6 +80,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <BranchProvider>
+          <ModulesProvider>
           <AppProvider>
             <Routes>
               <Route path="/master/*" element={<MasterRoute />} />
@@ -136,6 +138,7 @@ export default function App() {
             </Routes>
             <CookieConsent />
           </AppProvider>
+          </ModulesProvider>
         </BranchProvider>
       </AuthProvider>
     </BrowserRouter>

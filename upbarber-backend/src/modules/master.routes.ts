@@ -334,6 +334,23 @@ router.post("/barbershops/:id/impersonate", validate({ params: idParams }), asyn
   return ok(res, { impersonateToken });
 });
 
+// Module management per barbershop (plugin system)
+router.get("/barbershops/:id/modules", validate({ params: idParams }), async (req, res) => {
+  const shop = await prisma.barbershop.findUniqueOrThrow({ where: { id: req.params.id }, select: { id: true, name: true, enabledModules: true, saasPlanId: true, masterSaasPlan: { select: { name: true, modality: true, defaultModules: true } } } });
+  return ok(res, shop);
+});
+
+router.patch("/barbershops/:id/modules", validate({ params: idParams, body: z.object({ enabledModules: z.array(z.string()) }) }), async (req, res) => {
+  const shop = await prisma.barbershop.update({ where: { id: req.params.id }, data: { enabledModules: req.body.enabledModules } });
+  return ok(res, { id: shop.id, enabledModules: shop.enabledModules });
+});
+
+// Plan modality and default modules
+router.patch("/plans/:id/modality", validate({ params: idParams, body: z.object({ modality: z.enum(["normal", "subscription", "both"]), defaultModules: z.array(z.string()).optional() }) }), async (req, res) => {
+  const plan = await prisma.saasPlan.update({ where: { id: req.params.id }, data: { modality: req.body.modality, ...(req.body.defaultModules ? { defaultModules: req.body.defaultModules } : {}) } });
+  return ok(res, plan);
+});
+
 router.get("/invoices/summary", async (_req, res) => {
   const invoices = await prisma.saasInvoice.findMany();
   const totalPaid = sum(invoices.filter(i => i.status === "paid"), "amount");
