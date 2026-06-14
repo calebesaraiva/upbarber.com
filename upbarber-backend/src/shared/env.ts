@@ -23,7 +23,16 @@ const envSchema = z.object({
   PAYMENT_GATEWAY: z.string().default("disabled"),
   STRIPE_PUBLIC_KEY: z.string().default(""),
   STRIPE_SECRET_KEY: z.string().default(""),
-  STRIPE_WEBHOOK_SECRET: z.string().default("")
+  STRIPE_WEBHOOK_SECRET: z.string().default(""),
+  EFI_ENVIRONMENT: z.string().default("production"),
+  EFI_CLIENT_ID: z.string().default(""),
+  EFI_CLIENT_SECRET: z.string().default(""),
+  EFI_CERT_PATH: z.string().default(""),
+  EFI_CERT_PASSWORD: z.string().default(""),
+  EFI_CERT_BASE64: z.string().default(""),
+  EFI_PIX_KEY: z.string().default(""),
+  EFI_RECEIVER_NAME: z.string().default(""),
+  EFI_RECEIVER_CITY: z.string().default("")
   ,SMTP_HOST: z.string().default("smtp.hostinger.com")
   ,SMTP_PORT: z.coerce.number().default(465)
   ,SMTP_USER: z.string().default("")

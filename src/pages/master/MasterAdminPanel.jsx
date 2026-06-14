@@ -1746,19 +1746,28 @@ function ConfigSection() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ color: P.muted, fontSize: 13 }}>Provedor</label>
-            <select value={config.payment_gateway ?? "stripe"} onChange={e => upd("payment_gateway", e.target.value)} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 14px", color: P.text, fontSize: 14 }}>
+            <select value={config.payment_gateway ?? "efi"} onChange={e => upd("payment_gateway", e.target.value)} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 14px", color: P.text, fontSize: 14 }}>
+              <option value="efi">Efí Bank</option>
               <option value="stripe">Stripe</option>
               <option value="asaas">Asaas</option>
               <option value="pagseguro">PagSeguro</option>
               <option value="mercadopago">Mercado Pago</option>
             </select>
           </div>
+          <Input label="Ambiente Efí" value={config.efi_environment ?? ""} onChange={e => upd("efi_environment", e.target.value)} placeholder="production / sandbox" />
+          <Input label="Client ID Efí" value={config.efi_client_id ?? ""} onChange={e => upd("efi_client_id", e.target.value)} placeholder="Client_Id_..." />
+          <Input label="Client Secret Efí" type="password" value={config.efi_client_secret ?? ""} onChange={e => upd("efi_client_secret", e.target.value)} placeholder="Client_Secret_..." />
+          <Input label="Caminho do certificado P12" value={config.efi_cert_path ?? ""} onChange={e => upd("efi_cert_path", e.target.value)} placeholder="/opt/upbarber/certificados/efi.p12" />
+          <Input label="Senha do certificado" type="password" value={config.efi_cert_password ?? ""} onChange={e => upd("efi_cert_password", e.target.value)} placeholder="••••••••" />
+          <Input label="Chave Pix Efí" value={config.efi_pix_key ?? ""} onChange={e => upd("efi_pix_key", e.target.value)} placeholder="CNPJ, email, telefone ou EVP" />
+          <Input label="Nome do recebedor" value={config.efi_receiver_name ?? ""} onChange={e => upd("efi_receiver_name", e.target.value)} placeholder="NEXUS TECNOLOGIA LTDA" />
+          <Input label="Cidade do recebedor" value={config.efi_receiver_city ?? ""} onChange={e => upd("efi_receiver_city", e.target.value)} placeholder="SAO PAULO" />
           <Input label="Chave Pública" value={config.stripe_public_key ?? ""} onChange={e => upd("stripe_public_key", e.target.value)} placeholder="pk_live_..." />
           <Input label="Chave Secreta" type="password" value={config.stripe_secret_key ?? ""} onChange={e => upd("stripe_secret_key", e.target.value)} placeholder="sk_live_..." />
           <Input label="Webhook Secret" type="password" value={config.stripe_webhook_secret ?? ""} onChange={e => upd("stripe_webhook_secret", e.target.value)} placeholder="whsec_..." />
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-          <Btn icon={Check} onClick={() => saveSection(["payment_gateway", "stripe_public_key", "stripe_secret_key", "stripe_webhook_secret"])} disabled={saving}>Salvar Gateway</Btn>
+          <Btn icon={Check} onClick={() => saveSection(["payment_gateway", "efi_environment", "efi_client_id", "efi_client_secret", "efi_cert_path", "efi_cert_password", "efi_pix_key", "efi_receiver_name", "efi_receiver_city", "stripe_public_key", "stripe_secret_key", "stripe_webhook_secret"])} disabled={saving}>Salvar Gateway</Btn>
         </div>
       </Section>
 

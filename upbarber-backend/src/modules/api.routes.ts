@@ -2,6 +2,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
+import QRCode from "qrcode";
 import { z } from "zod";
 import { prisma } from "../shared/prisma.js";
 import { authenticate, authorize, authorizeAppAccess, enforceTenantAccess } from "../shared/middleware/auth.js";
@@ -22,6 +23,32 @@ const router = Router();
 router.use("/auth", authRoutes);
 router.use("/master", masterRoutes);
 router.get("/public/plans", async (_req, res) => ok(res, await prisma.saasPlan.findMany({ where: { isActive: true }, orderBy: { price: "asc" } })));
+
+router.post("/webhooks/efi/pix", async (req, res) => {
+  const body = req.body ?? {};
+  const candidates = collectTxids(body);
+  if (candidates.length === 0) return ok(res, { processed: 0 });
+
+  const invoices = await prisma.saasInvoice.findMany({
+    where: { gatewayRef: { in: candidates } },
+    include: { barbershop: true }
+  });
+
+  let processed = 0;
+  for (const invoice of invoices) {
+    const status = extractPaymentStatus(body, invoice.gatewayRef ?? "");
+    if (["CONCLUIDA", "CONCLUDED", "PAID", "REALIZADO"].includes(status ?? "")) {
+      await prisma.saasInvoice.update({
+        where: { id: invoice.id },
+        data: { status: "paid", paidAt: new Date(), paymentMethod: "pix" }
+      });
+      await prisma.barbershop.update({ where: { id: invoice.barbershopId }, data: { saasStatus: "active", suspendedAt: null, subscriptionStatus: "active" } });
+      processed++;
+    }
+  }
+
+  return ok(res, { processed });
+});
 
 router.post("/banners/:id/view", validate({ params: idParams }), async (req, res) => ok(res, await prisma.banner.update({ where: { id: req.params.id }, data: { viewCount: { increment: 1 } } })));
 router.post("/banners/:id/click", validate({ params: idParams }), async (req, res) => ok(res, await prisma.banner.update({ where: { id: req.params.id }, data: { clickCount: { increment: 1 } } })));
@@ -252,9 +279,27 @@ router.use("/support", buildTenantSupportRouter());
 router.get("/saas/plans", async (_req, res) => ok(res, await prisma.saasPlan.findMany({ where: { isActive: true }, orderBy: { price: "asc" } })));
 router.get("/saas/plans/:id", validate({ params: idParams }), async (req, res) => ok(res, await prisma.saasPlan.findUnique({ where: { id: req.params.id } })));
 router.get("/saas/invoices/current", async (req, res) => {
-  const invoice = await prisma.saasInvoice.findFirst({ where: { barbershopId: tenantId(req), status: { in: ["pending", "overdue"] } }, orderBy: { dueDate: "asc" } });
+  const invoice = await prisma.saasInvoice.findFirst({ where: { barbershopId: tenantId(req), status: { in: ["pending", "overdue"] } }, include: { barbershop: true }, orderBy: { dueDate: "asc" } });
   if (!invoice) return ok(res, null);
-  return ok(res, { ...invoice, pix: await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`) });
+  if (invoice.pixPayload && invoice.gatewayRef) {
+    return ok(res, {
+      ...invoice,
+      pix: {
+        provider: "stored",
+        txid: invoice.gatewayRef,
+        copyPaste: invoice.pixPayload,
+        qrCodeDataUrl: await QRCode.toDataURL(invoice.pixPayload, { width: 360, margin: 2 }),
+        amount: Number(invoice.amount)
+      }
+    });
+  }
+  const pix = await createPixCharge(Number(invoice.amount), invoice.id, {
+    dueDate: invoice.dueDate,
+    description: `Mensalidade UpBarber - ${invoice.barbershop.name}`,
+    reference: invoice.id
+  });
+  await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { pixPayload: pix.copyPaste, gatewayRef: pix.txid, paymentMethod: "pix" } });
+  return ok(res, { ...invoice, pix });
 });
 router.get("/saas/plan-change-requests", async (req, res) => {
   const requests = await prisma.saasPlanChangeRequest.findMany({
@@ -287,6 +332,31 @@ router.post("/saas/plan-change-requests", validate({ body: z.object({ targetPlan
 router.post("/saas/plans", authorize("saas_admin"), validate({ body: z.object({ name: z.string(), price: z.coerce.number(), maxBarbers: z.number().nullable().optional(), maxClients: z.number().nullable().optional(), features: z.any().default({}), isActive: z.boolean().optional() }) }), async (req, res) => created(res, await prisma.saasPlan.create({ data: req.body })));
 router.put("/saas/plans/:id", authorize("saas_admin"), validate({ params: idParams, body: z.object({ name: z.string().optional(), price: z.coerce.number().optional(), maxBarbers: z.number().nullable().optional(), maxClients: z.number().nullable().optional(), features: z.any().optional(), isActive: z.boolean().optional() }) }), async (req, res) => ok(res, await prisma.saasPlan.update({ where: { id: req.params.id }, data: req.body })));
 router.delete("/saas/plans/:id", authorize("saas_admin"), validate({ params: idParams }), async (req, res) => { await prisma.saasPlan.update({ where: { id: req.params.id }, data: { isActive: false } }); return noContent(res); });
+
+function collectTxids(body: any) {
+  const txids = new Set<string>();
+  if (typeof body?.txid === "string") txids.add(body.txid);
+  if (typeof body?.cob?.txid === "string") txids.add(body.cob.txid);
+  if (typeof body?.cobv?.txid === "string") txids.add(body.cobv.txid);
+  if (Array.isArray(body?.pix)) {
+    for (const item of body.pix) if (typeof item?.txid === "string") txids.add(item.txid);
+  }
+  if (Array.isArray(body?.cobs)) {
+    for (const item of body.cobs) if (typeof item?.txid === "string") txids.add(item.txid);
+  }
+  return [...txids];
+}
+
+function extractPaymentStatus(body: any, txid: string) {
+  if (typeof body?.status === "string") return body.status.toUpperCase();
+  if (typeof body?.cob?.status === "string") return body.cob.status.toUpperCase();
+  if (typeof body?.cobv?.status === "string") return body.cobv.status.toUpperCase();
+  if (Array.isArray(body?.pix)) {
+    const item = body.pix.find((entry: any) => entry?.txid === txid);
+    if (item?.status) return String(item.status).toUpperCase();
+  }
+  return null;
+}
 
 function buildClientsRouter() {
   const r = Router();

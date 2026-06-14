@@ -10,7 +10,7 @@ import { signAccessToken } from "../shared/middleware/auth.js";
 import { AppError, created, noContent, ok, paginated } from "../shared/utils/http.js";
 import { pagination, textSearch } from "../shared/utils/query.js";
 import { emailButton, emailCode, emailCopyBox, emailInfoRows, emailLayout, emailParagraph, emailSecondaryButton, emailSteps, escapeHtml, sendMail } from "../shared/utils/mail.js";
-import { createPixCharge, createPixPayload } from "../shared/utils/pix.js";
+import { createPixCharge } from "../shared/utils/pix.js";
 import { env } from "../shared/env.js";
 
 const router = Router();
@@ -219,13 +219,24 @@ router.post("/barbershops", validate({ body: provisionBarbershopSchema }), async
         amount: plan.price,
         dueDate: req.body.dueDate,
         paymentMethod: "pix",
-        pixPayload: createPixPayload(Number(plan.price), `UPB${barbershop.id.slice(-12)}`),
         status: req.body.invoiceStatus,
         paidAt: req.body.invoiceStatus === "paid" ? new Date() : null
       }
     });
     return { barbershop, owner, branch, invoice, plan };
   });
+
+  if (result.invoice) {
+    const charge = await createPixCharge(Number(result.invoice.amount), result.invoice.id, {
+      dueDate: result.invoice.dueDate,
+      description: `Mensalidade UpBarber - ${result.barbershop.name}`,
+      reference: result.invoice.id
+    });
+    await prisma.saasInvoice.update({
+      where: { id: result.invoice.id },
+      data: { pixPayload: charge.copyPaste, gatewayRef: charge.txid, paymentMethod: "pix" }
+    });
+  }
 
   return created(res, {
     ...result,
@@ -270,9 +281,16 @@ router.patch("/registrations/:id/approve", validate({ params: idParams, body: z.
   const shop = await prisma.$transaction(async tx => {
     const updated = await tx.barbershop.update({ where: { id: req.params.id }, data: { approvalStatus: "approved", saasStatus: "active", subscriptionStatus: "active", saasPlanId: plan.id, saasPlansId: plan.id } });
     await tx.user.updateMany({ where: { barbershopId: updated.id, role: "admin" }, data: { isActive: true } });
-    await tx.saasInvoice.create({ data: { barbershopId: updated.id, amount: plan.price, dueDate: req.body.dueDate, paymentMethod: "pix", pixPayload: createPixPayload(Number(plan.price), `UPB${updated.id.slice(-12)}`) } });
+    const invoice = await tx.saasInvoice.create({ data: { barbershopId: updated.id, amount: plan.price, dueDate: req.body.dueDate, paymentMethod: "pix" } });
     return updated;
   });
+  const invoice = await prisma.saasInvoice.findFirstOrThrow({ where: { barbershopId: shop.id }, orderBy: { createdAt: "desc" } });
+  const charge = await createPixCharge(Number(invoice.amount), invoice.id, {
+    dueDate: invoice.dueDate,
+    description: `Mensalidade UpBarber - ${shop.name}`,
+    reference: invoice.id
+  });
+  await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { pixPayload: charge.copyPaste, gatewayRef: charge.txid } });
   const owner = await prisma.user.findFirst({ where: { barbershopId: shop.id, role: "admin" } });
   if (owner) await sendMail(
     owner.email,
@@ -318,7 +336,7 @@ router.patch("/plan-change-requests/:id/approve", validate({ params: idParams, b
     include: { targetPlan: true, barbershop: true }
   });
   const dueDate = req.body.dueDate ?? new Date(Date.now() + 30 * 86400000);
-  const updated = await prisma.$transaction(async tx => {
+  const result = await prisma.$transaction(async tx => {
     const shop = await tx.barbershop.update({
       where: { id: request.barbershopId },
       data: {
@@ -333,18 +351,24 @@ router.patch("/plan-change-requests/:id/approve", validate({ params: idParams, b
       where: { id: request.id },
       data: { status: "approved", reviewedByMasterId: req.masterAdmin.adminId, reviewedAt: new Date() }
     });
-    await tx.saasInvoice.create({
+    const invoice = await tx.saasInvoice.create({
       data: {
         barbershopId: shop.id,
         amount: request.targetPlan.price,
         dueDate,
-        paymentMethod: "pix",
-        pixPayload: createPixPayload(Number(request.targetPlan.price), `UPB${shop.id.slice(-12)}`)
+        paymentMethod: "pix"
       }
     });
-    return shop;
+    return { shop, invoiceId: invoice.id };
   });
-  return ok(res, updated);
+  const invoice = await prisma.saasInvoice.findUniqueOrThrow({ where: { id: result.invoiceId } });
+  const charge = await createPixCharge(Number(invoice.amount), invoice.id, {
+    dueDate: invoice.dueDate,
+    description: `Migração de plano UpBarber - ${result.shop.name}`,
+    reference: invoice.id
+  });
+  await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { pixPayload: charge.copyPaste, gatewayRef: charge.txid } });
+  return ok(res, result.shop);
 });
 
 router.patch("/plan-change-requests/:id/reject", validate({ params: idParams }), async (req, res) => {
@@ -441,21 +465,33 @@ router.post("/invoices/generate-monthly", async (_req, res) => {
   const shops = await prisma.barbershop.findMany({ where: { saasStatus: { in: ["active", "overdue"] }, saasPlanId: { not: null } }, include: { masterSaasPlan: true } });
   const dueDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
   let createdCount = 0;
+  let chargedCount = 0;
   for (const shop of shops) {
     const exists = await prisma.saasInvoice.findFirst({ where: { barbershopId: shop.id, dueDate } });
     if (!exists) {
-      await prisma.saasInvoice.create({ data: { barbershopId: shop.id, amount: shop.masterSaasPlan?.price ?? 0, dueDate, status: "pending" } });
+      const invoice = await prisma.saasInvoice.create({ data: { barbershopId: shop.id, amount: shop.masterSaasPlan?.price ?? 0, dueDate, status: "pending", paymentMethod: "pix" } });
+      const charge = await createPixCharge(Number(invoice.amount), invoice.id, {
+        dueDate: invoice.dueDate,
+        description: `Mensalidade UpBarber - ${shop.name}`,
+        reference: invoice.id
+      });
+      await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { pixPayload: charge.copyPaste, gatewayRef: charge.txid, paymentMethod: "pix" } });
       createdCount++;
+      chargedCount++;
     }
   }
-  return created(res, { created: createdCount });
+  return created(res, { created: createdCount, charged: chargedCount });
 });
 
 router.post("/invoices/:id/charge", validate({ params: idParams, body: z.object({ method: z.string() }) }), async (req, res) => {
   if (req.body.method !== "pix") throw new AppError(400, "PIX_ONLY", "No momento, aceitamos apenas Pix");
   const invoice = await prisma.saasInvoice.findUniqueOrThrow({ where: { id: req.params.id }, include: { barbershop: { include: { users: { where: { role: "admin" }, take: 1 } } } } });
-  const charge = await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`);
-  await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { paymentMethod: "pix", pixPayload: charge.copyPaste } });
+  const charge = await createPixCharge(Number(invoice.amount), invoice.id, {
+    dueDate: invoice.dueDate,
+    description: `Cobrança UpBarber - ${invoice.barbershop.name}`,
+    reference: invoice.id
+  });
+  await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { paymentMethod: "pix", pixPayload: charge.copyPaste, gatewayRef: charge.txid } });
   const email = invoice.barbershop.users[0]?.email ?? invoice.barbershop.email;
   if (email) await sendMail(
     email,
@@ -485,7 +521,11 @@ router.post("/invoices/:id/charge", validate({ params: idParams, body: z.object(
 
 router.get("/invoices/:id/pix", validate({ params: idParams }), async (req, res) => {
   const invoice = await prisma.saasInvoice.findUniqueOrThrow({ where: { id: req.params.id } });
-  return ok(res, await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`));
+  return ok(res, await createPixCharge(Number(invoice.amount), invoice.id, {
+    dueDate: invoice.dueDate,
+    description: `Cobrança UpBarber - ${invoice.id}`,
+    reference: invoice.id
+  }));
 });
 
 router.patch("/invoices/:id/mark-paid", validate({ params: idParams, body: z.object({ method: z.string().optional(), paidAt: z.string().optional() }) }), async (req, res) => {
@@ -640,7 +680,7 @@ async function firstUserId(barbershopId: string) {
 }
 
 function isSensitive(key: string) {
-  return ["smtp_pass", "stripe_secret_key", "stripe_webhook_secret"].includes(key);
+  return ["smtp_pass", "stripe_secret_key", "stripe_webhook_secret", "efi_client_secret", "efi_cert_password", "efi_cert_base64"].includes(key);
 }
 
 async function isMasterMfaEnabled() {
