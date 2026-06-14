@@ -438,7 +438,6 @@ function BarbeariasSection() {
   const [chargeMethod, setChargeMethod] = useState("Pix");
   const [chargeObs, setChargeObs] = useState("");
   const [saving, setSaving] = useState(false);
-  const masterMfaEnabled = false;
   const [plans, setPlans] = useState([]);
   const [newShop, setNewShop] = useState({
     barbershopName: "", ownerName: "", ownerEmail: "", ownerPassword: "",
@@ -1408,6 +1407,8 @@ function ConfigSection() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const masterMfaEnabled = config.master_mfa_enabled !== "false";
 
   const saveSection = async (keys) => {
     setSaving(true);
