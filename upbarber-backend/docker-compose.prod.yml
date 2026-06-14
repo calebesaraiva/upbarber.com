@@ -5,9 +5,12 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3333:3333"
+      - "127.0.0.1:3334:3333"
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://upbarber:upbarber123@postgres:5432/upbarber
+      REDIS_URL: redis://redis:6379
     depends_on:
       - postgres
       - redis

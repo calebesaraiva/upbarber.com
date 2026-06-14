@@ -6,6 +6,9 @@ import { authService } from '../../services/auth.service';
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const send = async () => {
@@ -13,6 +16,12 @@ export default function ForgotPassword() {
     await authService.forgotPassword(email).catch(() => {});
     setLoading(false);
     setSent(true);
+  };
+  const reset = async () => {
+    setLoading(true);
+    await authService.resetPassword({ email, code, newPassword: password });
+    setLoading(false);
+    setDone(true);
   };
 
   return (
@@ -27,19 +36,29 @@ export default function ForgotPassword() {
             <>
               <div className="p-3 bg-gold/10 rounded-xl w-fit mb-4"><Mail size={24} className="text-gold" /></div>
               <h2 className="text-xl font-bold text-white mb-1">Recuperar senha</h2>
-              <p className="text-sm text-gray-500 mb-6">Digite seu e-mail e enviaremos um link de recuperação.</p>
+              <p className="text-sm text-gray-500 mb-6">Digite seu e-mail e enviaremos um código de recuperação.</p>
               <div className="space-y-4">
                 <div><label className="text-xs text-gray-400 mb-1 block">E-mail</label>
                   <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" />
                 </div>
               </div>
-              <button className="btn-primary w-full justify-center mt-6" onClick={send}>{loading ? 'Enviando...' : 'Enviar link'}</button>
+              <button className="btn-primary w-full justify-center mt-6" onClick={send}>{loading ? 'Enviando...' : 'Enviar código'}</button>
+            </>
+          ) : !done ? (
+            <>
+              <h2 className="text-xl font-bold text-white mb-1">Redefinir senha</h2>
+              <p className="text-sm text-gray-500 mb-6">Informe o código recebido por email.</p>
+              <div className="space-y-4">
+                <input className="input" value={code} onChange={e=>setCode(e.target.value)} placeholder="Código de 6 dígitos" />
+                <input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Nova senha" />
+              </div>
+              <button className="btn-primary w-full justify-center mt-6" onClick={reset}>{loading ? 'Salvando...' : 'Redefinir senha'}</button>
             </>
           ) : (
             <div className="text-center">
               <div className="p-3 bg-emerald-500/10 rounded-xl w-fit mx-auto mb-4"><CheckCircle size={24} className="text-emerald-400" /></div>
-              <h2 className="text-xl font-bold text-white mb-2">E-mail enviado!</h2>
-              <p className="text-sm text-gray-500">Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.</p>
+              <h2 className="text-xl font-bold text-white mb-2">Senha atualizada</h2>
+              <p className="text-sm text-gray-500">Você já pode entrar com sua nova senha.</p>
             </div>
           )}
         </div>

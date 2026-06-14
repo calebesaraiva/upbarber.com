@@ -2,7 +2,7 @@ import rateLimit from "express-rate-limit";
 
 export const publicRateLimit = rateLimit({
   windowMs: 60_000,
-  limit: 100,
+  limit: 1000,
   standardHeaders: true,
   legacyHeaders: false
 });

@@ -4,12 +4,15 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  const email = process.env.MASTER_ADMIN_EMAIL;
+  const password = process.env.MASTER_ADMIN_PASSWORD;
+  if (!email || !password) throw new Error("Defina MASTER_ADMIN_EMAIL e MASTER_ADMIN_PASSWORD");
   await prisma.masterAdmin.upsert({
-    where: { email: "admin@upbarber.com.br" },
+    where: { email },
     update: {},
     create: {
-      email: "admin@upbarber.com.br",
-      passwordHash: await bcrypt.hash("Admin@2026!", 12),
+      email,
+      passwordHash: await bcrypt.hash(password, 12),
       name: "Admin Master",
       role: "master"
     }

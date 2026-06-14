@@ -1,12 +1,14 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../shared/prisma.js";
 import { validate } from "../shared/middleware/validate.js";
 import { authenticate, enforceTenantAccess, signAccessToken, signRefreshToken, type TokenPayload } from "../shared/middleware/auth.js";
 import { env } from "../shared/env.js";
 import { AppError, created, ok } from "../shared/utils/http.js";
+import { emailLayout, sendMail } from "../shared/utils/mail.js";
 
 const router = Router();
 
@@ -17,13 +19,14 @@ const registerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(6),
-  saasPlansId: z.string().optional().nullable()
+  saasPlansId: z.string().optional().nullable(),
+  inviteToken: z.string().optional()
 });
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 const refreshSchema = z.object({ refreshToken: z.string().min(10) });
 const forgotSchema = z.object({ email: z.string().email() });
-const resetSchema = z.object({ token: z.string(), newPassword: z.string().min(6) });
+const resetSchema = z.object({ email: z.string().email(), code: z.string().length(6), newPassword: z.string().min(6) });
 
 function tokenPayload(user: { id: string; barbershopId: string | null; role: TokenPayload["role"]; email: string }) {
   return { userId: user.id, barbershopId: user.barbershopId, role: user.role, email: user.email };
@@ -31,6 +34,12 @@ function tokenPayload(user: { id: string; barbershopId: string | null; role: Tok
 
 router.post("/register", validate({ body: registerSchema }), async (req, res) => {
   const passwordHash = await bcrypt.hash(req.body.password, 10);
+  const email = req.body.email.toLowerCase();
+  if (await prisma.user.findUnique({ where: { email } })) throw new AppError(409, "EMAIL_ALREADY_IN_USE", "Este email já está em uso");
+  if (req.body.inviteToken) {
+    const invite = await prisma.registrationInvite.findFirst({ where: { tokenHash: hash(req.body.inviteToken), status: "pending", expiresAt: { gt: new Date() } } });
+    if (!invite || invite.email.toLowerCase() !== email) throw new AppError(400, "INVALID_INVITE", "Convite inválido ou expirado");
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const barbershop = await tx.barbershop.create({
@@ -39,7 +48,11 @@ router.post("/register", validate({ body: registerSchema }), async (req, res) =>
         city: req.body.city,
         phone: req.body.phone,
         saasPlansId: req.body.saasPlansId,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+        saasPlanId: req.body.saasPlansId,
+        saasStatus: "suspended",
+        subscriptionStatus: "suspended",
+        approvalStatus: "pending",
+        registrationSource: req.body.inviteToken ? "invite" : "public"
       }
     });
 
@@ -47,34 +60,33 @@ router.post("/register", validate({ body: registerSchema }), async (req, res) =>
       data: {
         barbershopId: barbershop.id,
         name: req.body.name,
-        email: req.body.email,
+        email,
         passwordHash,
-        role: "admin"
+        role: "admin",
+        isActive: false
       }
     });
 
     await tx.barbershopPaymentMethods.create({ data: { barbershopId: barbershop.id } });
     await tx.whatsAppConnection.create({ data: { barbershopId: barbershop.id } });
+    if (req.body.inviteToken) await tx.registrationInvite.update({ where: { tokenHash: hash(req.body.inviteToken) }, data: { status: "used", usedAt: new Date() } });
 
     return { barbershop, user };
   });
 
-  const payload = tokenPayload(result.user);
-  const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken(payload);
-  await prisma.user.update({ where: { id: result.user.id }, data: { refreshToken, lastLoginAt: new Date() } });
-
-  return created(res, { ...result, user: { ...result.user, passwordHash: undefined }, accessToken, refreshToken });
+  await issueCode(result.user.id, "verify_email", email);
+  return created(res, { barbershop: result.barbershop, user: { ...result.user, passwordHash: undefined }, status: "pending_approval" });
 });
 
 router.post("/login", validate({ body: loginSchema }), async (req, res) => {
   const email = req.body.email.toLowerCase();
-  const demoAliasEmail = email === "admin@upbarber.com.br" ? "admin@upbarber.com" : email;
   const user = await prisma.user.findFirst({
-    where: { email: { in: [email, demoAliasEmail] } },
+    where: { email },
     include: { barbershop: true }
   });
   if (!user || !user.isActive) throw new AppError(401, "INVALID_CREDENTIALS", "Email ou senha inválidos");
+  if (!user.emailVerifiedAt) throw new AppError(403, "EMAIL_NOT_VERIFIED", "Confirme o código enviado ao seu email");
+  if (user.barbershop?.approvalStatus !== "approved") throw new AppError(403, "REGISTRATION_PENDING", "Seu cadastro está aguardando aprovação");
   const valid = await bcrypt.compare(req.body.password, user.passwordHash);
   if (!valid) throw new AppError(401, "INVALID_CREDENTIALS", "Email ou senha inválidos");
   if (!user.barbershop || ["suspended", "cancelled"].includes(user.barbershop.saasStatus)) {
@@ -112,12 +124,26 @@ router.post("/logout", validate({ body: refreshSchema }), async (req, res) => {
   return ok(res, { success: true });
 });
 
-router.post("/forgot-password", validate({ body: forgotSchema }), async (_req, res) => {
+router.post("/forgot-password", validate({ body: forgotSchema }), async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { email: req.body.email.toLowerCase() } });
+  if (user) await issueCode(user.id, "reset_password", user.email);
   return ok(res, { message: "Se o email existir, enviaremos instruções para redefinição." });
 });
 
-router.post("/reset-password", validate({ body: resetSchema }), async (_req, res) => {
-  return ok(res, { message: "Fluxo de recuperação preparado para integração SMTP." });
+router.post("/reset-password", validate({ body: resetSchema }), async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { email: req.body.email.toLowerCase() } });
+  if (!user) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+  await consumeCode(user.id, "reset_password", req.body.code);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(req.body.newPassword, 10), refreshToken: null } });
+  return ok(res, { message: "Senha redefinida com sucesso." });
+});
+
+router.post("/verify-email", validate({ body: z.object({ email: z.string().email(), code: z.string().length(6) }) }), async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { email: req.body.email.toLowerCase() } });
+  if (!user) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+  await consumeCode(user.id, "verify_email", req.body.code);
+  await prisma.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+  return ok(res, { message: "Email verificado. Aguarde a aprovação do cadastro." });
 });
 
 router.get("/me", authenticate, enforceTenantAccess, async (req, res) => {
@@ -127,3 +153,18 @@ router.get("/me", authenticate, enforceTenantAccess, async (req, res) => {
 });
 
 export default router;
+
+const hash = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
+
+async function issueCode(userId: string, purpose: string, email: string) {
+  const code = String(crypto.randomInt(100000, 1000000));
+  await prisma.authCode.create({ data: { userId, purpose, codeHash: hash(code), expiresAt: new Date(Date.now() + 15 * 60 * 1000) } });
+  await sendMail(email, purpose === "reset_password" ? "Código para redefinir sua senha" : "Código de verificação UpBarber",
+    emailLayout("Código de segurança", `<p>Use o código abaixo. Ele expira em 15 minutos.</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">${code}</p>`));
+}
+
+async function consumeCode(userId: string, purpose: string, code: string) {
+  const item = await prisma.authCode.findFirst({ where: { userId, purpose, codeHash: hash(code), consumedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" } });
+  if (!item) throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado");
+  await prisma.authCode.update({ where: { id: item.id }, data: { consumedAt: new Date() } });
+}

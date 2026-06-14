@@ -24,6 +24,7 @@ import {
   getMasterBarbershopStats,
   getMasterBarbershops,
   createMasterBarbershop,
+  inviteBarbershopOwner, getPendingRegistrations, approveRegistration, rejectRegistration, sendMasterNotice,
   suspendBarbershop,
   reactivateBarbershop,
   impersonateBarbershop,
@@ -343,15 +344,18 @@ function BarbeariasSection() {
   const [selected, setSelected] = useState(null);
   const [modal, setModal] = useState(null);
   const [suspendReason, setSuspendReason] = useState("");
-  const [chargeMethod, setChargeMethod] = useState("Cartão de crédito");
+  const [chargeMethod, setChargeMethod] = useState("Pix");
   const [chargeObs, setChargeObs] = useState("");
   const [saving, setSaving] = useState(false);
   const [plans, setPlans] = useState([]);
   const [newShop, setNewShop] = useState({
     barbershopName: "", ownerName: "", ownerEmail: "", ownerPassword: "",
     planId: "", dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    paymentMethod: "pix", invoiceStatus: "pending", phone: "", city: "", state: "",
+    paymentMethod: "pix", invoiceStatus: "pending", trialDays: "", phone: "", city: "", state: "",
   });
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [pending, setPending] = useState([]);
+  const [notice, setNotice] = useState({ title: "", message: "", sendEmail: true });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -384,7 +388,7 @@ function BarbeariasSection() {
   const handleCreate = async () => {
     setSaving(true);
     try {
-      await createMasterBarbershop(newShop);
+      await createMasterBarbershop({ ...newShop, trialDays: newShop.trialDays ? Number(newShop.trialDays) : undefined });
       setModal(null);
       setNewShop(current => ({
         ...current, barbershopName: "", ownerName: "", ownerEmail: "", ownerPassword: "",
@@ -397,6 +401,11 @@ function BarbeariasSection() {
       setSaving(false);
     }
   };
+  const loadPending = () => getPendingRegistrations().then(r=>setPending(unwrap(r.data)||[]));
+  useEffect(()=>{loadPending()},[]);
+  const sendInvite = async()=>{await inviteBarbershopOwner({email:inviteEmail,expiresInDays:7});setInviteEmail("");alert("Convite enviado por email")};
+  const approve = async shop=>{const planId=plans[0]?.id;if(!planId)return;await approveRegistration(shop.id,{planId,dueDate:new Date(Date.now()+30*86400000).toISOString()});await loadPending();await load()};
+  const sendNotice = async()=>{await sendMasterNotice(notice);setNotice({title:"",message:"",sendEmail:true});alert("Aviso enviado")};
 
   const handleSuspend = async () => {
     if (!selected) return;
@@ -448,8 +457,7 @@ function BarbeariasSection() {
         setSaving(false);
         return;
       }
-      const methodMap = { "Cartão de crédito": "credit", "Pix": "pix", "Boleto": "boleto" };
-      await chargeInvoice(invoices[0].id, { method: methodMap[chargeMethod] || "credit" });
+      await chargeInvoice(invoices[0].id, { method: "pix" });
       setModal(null);
       alert("Cobrança realizada com sucesso!");
       await load();
@@ -495,6 +503,23 @@ function BarbeariasSection() {
         <Btn icon={Plus} small onClick={() => setModal("create")}>Nova barbearia</Btn>
         <Btn icon={RefreshCw} variant="ghost" small onClick={load}>Atualizar</Btn>
       </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
+        <div style={{background:P.card,border:`1px solid ${P.border}`,padding:16,borderRadius:8}}>
+          <div style={{color:P.text,fontWeight:600,marginBottom:10}}>Convidar proprietário</div>
+          <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="email@proprietario.com" style={{width:"100%",boxSizing:"border-box",background:P.surface,border:`1px solid ${P.border}`,color:P.text,padding:10,borderRadius:6}}/>
+          <Btn icon={Mail} small style={{marginTop:10}} onClick={sendInvite}>Enviar convite</Btn>
+        </div>
+        <div style={{background:P.card,border:`1px solid ${P.border}`,padding:16,borderRadius:8}}>
+          <div style={{color:P.text,fontWeight:600,marginBottom:10}}>Enviar aviso</div>
+          <input value={notice.title} onChange={e=>setNotice({...notice,title:e.target.value})} placeholder="Título" style={{width:"100%",boxSizing:"border-box",background:P.surface,border:`1px solid ${P.border}`,color:P.text,padding:10,borderRadius:6,marginBottom:8}}/>
+          <textarea value={notice.message} onChange={e=>setNotice({...notice,message:e.target.value})} placeholder="Mensagem" style={{width:"100%",boxSizing:"border-box",background:P.surface,border:`1px solid ${P.border}`,color:P.text,padding:10,borderRadius:6}}/>
+          <Btn icon={Send} small style={{marginTop:10}} onClick={sendNotice}>Enviar no sistema e email</Btn>
+        </div>
+      </div>
+      {pending.length>0&&<div style={{background:P.card,border:`1px solid ${P.border}`,padding:16,borderRadius:8}}>
+        <div style={{color:P.text,fontWeight:600,marginBottom:10}}>Cadastros aguardando análise</div>
+        {pending.map(shop=><div key={shop.id} style={{display:"flex",gap:8,alignItems:"center",padding:"8px 0",borderTop:`1px solid ${P.border}`}}><span style={{color:P.text,flex:1}}>{shop.name} · {shop.users?.[0]?.email}</span><Btn small onClick={()=>approve(shop)}>Aprovar</Btn><Btn small variant="ghost" onClick={async()=>{await rejectRegistration(shop.id);await loadPending()}}>Rejeitar</Btn></div>)}
+      </div>}
 
       <div style={{ background: P.card, border: `1px solid ${P.border}`, borderRadius: 12, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -557,6 +582,7 @@ function BarbeariasSection() {
             ["city", "Cidade", "text"],
             ["state", "Estado", "text"],
             ["dueDate", "Data de vencimento", "date"],
+            ["trialDays", "Duração do teste em dias (opcional)", "number"],
           ].map(([key, label, type]) => (
             <label key={key} style={{ color: P.muted, fontSize: 12 }}>
               {label}
@@ -570,12 +596,7 @@ function BarbeariasSection() {
               {plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} · {fmt(plan.price)}</option>)}
             </select>
           </label>
-          <label style={{ color: P.muted, fontSize: 12 }}>Forma de pagamento
-            <select value={newShop.paymentMethod} onChange={e => setNewShop({ ...newShop, paymentMethod: e.target.value })}
-              style={{ width: "100%", marginTop: 5, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 7, padding: "10px 12px", color: P.text }}>
-              <option value="pix">Pix</option><option value="credit">Cartão de crédito</option><option value="debit">Cartão de débito</option><option value="boleto">Boleto</option>
-            </select>
-          </label>
+          <label style={{ color: P.muted, fontSize: 12 }}>Forma de pagamento<input value="Pix · Banco do Brasil · CNPJ 52.671.137/0001-71" disabled style={{ width: "100%", marginTop: 5, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 7, padding: "10px 12px", color: P.muted, boxSizing:"border-box" }}/></label>
           <label style={{ color: P.muted, fontSize: 12 }}>Situação da primeira fatura
             <select value={newShop.invoiceStatus} onChange={e => setNewShop({ ...newShop, invoiceStatus: e.target.value })}
               style={{ width: "100%", marginTop: 5, background: P.surface, border: `1px solid ${P.border}`, borderRadius: 7, padding: "10px 12px", color: P.text }}>
@@ -647,9 +668,7 @@ function BarbeariasSection() {
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label style={{ color: P.muted, fontSize: 13 }}>Método</label>
                 <select value={chargeMethod} onChange={e => setChargeMethod(e.target.value)} style={{ background: P.surface, border: `1px solid ${P.border}`, borderRadius: 8, padding: "10px 14px", color: P.text, fontSize: 14 }}>
-                  <option>Cartão de crédito</option>
                   <option>Pix</option>
-                  <option>Boleto</option>
                 </select>
               </div>
             </div>
@@ -1496,7 +1515,7 @@ export default function MasterAdminPanel() {
               </div>
               <div>
                 <div style={{ color: P.text, fontSize: 13, fontWeight: 600 }}>Admin Master</div>
-                <div style={{ color: P.muted, fontSize: 11 }}>admin@upbarber.com</div>
+                <div style={{ color: P.muted, fontSize: 11 }}>comercial@nexustecnologialtda.com.br</div>
               </div>
             </div>
           </div>

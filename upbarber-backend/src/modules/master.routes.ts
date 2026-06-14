@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../shared/prisma.js";
 import { validate } from "../shared/middleware/validate.js";
@@ -8,6 +9,9 @@ import { authorizeMaster, signMasterToken } from "../shared/middleware/master-au
 import { signAccessToken } from "../shared/middleware/auth.js";
 import { AppError, created, noContent, ok, paginated } from "../shared/utils/http.js";
 import { pagination, textSearch } from "../shared/utils/query.js";
+import { emailLayout, sendMail } from "../shared/utils/mail.js";
+import { createPixCharge, createPixPayload } from "../shared/utils/pix.js";
+import { env } from "../shared/env.js";
 
 const router = Router();
 
@@ -20,11 +24,12 @@ const provisionBarbershopSchema = z.object({
   ownerPassword: z.string().min(6),
   planId: z.string(),
   dueDate: z.coerce.date(),
-  paymentMethod: z.enum(["pix", "credit", "debit", "boleto"]),
+  paymentMethod: z.literal("pix").default("pix"),
   phone: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
   state: z.string().optional().nullable(),
-  invoiceStatus: z.enum(["pending", "paid"]).default("pending")
+  invoiceStatus: z.enum(["pending", "paid"]).default("pending"),
+  trialDays: z.coerce.number().int().positive().max(365).optional()
 });
 
 router.post("/auth/login", validate({ body: z.object({ email: z.string().email(), password: z.string().min(1) }) }), async (req, res) => {
@@ -106,12 +111,14 @@ router.post("/barbershops", validate({ body: provisionBarbershopSchema }), async
         state: req.body.state,
         saasPlansId: plan.id,
         saasPlanId: plan.id,
-        saasStatus: "active",
-        subscriptionStatus: "active"
+        saasStatus: req.body.trialDays ? "trial" : "active",
+        subscriptionStatus: req.body.trialDays ? "trial" : "active",
+        trialEndsAt: req.body.trialDays ? new Date(Date.now() + req.body.trialDays * 86400000) : null,
+        approvalStatus: "approved"
       }
     });
     const owner = await tx.user.create({
-      data: { barbershopId: barbershop.id, name: req.body.ownerName, email, passwordHash, role: "admin" }
+      data: { barbershopId: barbershop.id, name: req.body.ownerName, email, passwordHash, role: "admin", emailVerifiedAt: new Date() }
     });
     const branch = await tx.branch.create({
       data: {
@@ -126,12 +133,13 @@ router.post("/barbershops", validate({ body: provisionBarbershopSchema }), async
     });
     await tx.barbershopPaymentMethods.create({ data: { barbershopId: barbershop.id } });
     await tx.whatsAppConnection.create({ data: { barbershopId: barbershop.id } });
-    const invoice = await tx.saasInvoice.create({
+    const invoice = req.body.trialDays ? null : await tx.saasInvoice.create({
       data: {
         barbershopId: barbershop.id,
         amount: plan.price,
         dueDate: req.body.dueDate,
-        paymentMethod: req.body.paymentMethod,
+        paymentMethod: "pix",
+        pixPayload: createPixPayload(Number(plan.price), `UPB${barbershop.id.slice(-12)}`),
         status: req.body.invoiceStatus,
         paidAt: req.body.invoiceStatus === "paid" ? new Date() : null
       }
@@ -143,6 +151,39 @@ router.post("/barbershops", validate({ body: provisionBarbershopSchema }), async
     ...result,
     owner: { ...result.owner, passwordHash: undefined, refreshToken: undefined }
   });
+});
+
+router.post("/invites", validate({ body: z.object({ email: z.string().email(), expiresInDays: z.coerce.number().int().positive().max(30).default(7) }) }), async (req, res) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const invite = await prisma.registrationInvite.create({
+    data: { email: req.body.email.toLowerCase(), tokenHash: sha256(token), expiresAt: new Date(Date.now() + req.body.expiresInDays * 86400000) }
+  });
+  const url = `${env.APP_URL.replace(/\/$/, "")}/cadastro?invite=${token}&email=${encodeURIComponent(invite.email)}`;
+  await sendMail(invite.email, "Convite para cadastrar sua barbearia no UpBarber",
+    emailLayout("Você foi convidado", `<p>Preencha o cadastro da sua barbearia. Após o envio, ele ficará em análise.</p><p><a href="${url}">Fazer cadastro</a></p>`));
+  return created(res, { id: invite.id, email: invite.email, expiresAt: invite.expiresAt });
+});
+
+router.get("/registrations", async (_req, res) => ok(res, await prisma.barbershop.findMany({
+  where: { approvalStatus: "pending" }, include: { users: { where: { role: "admin" }, take: 1 }, masterSaasPlan: true }, orderBy: { createdAt: "desc" }
+})));
+
+router.patch("/registrations/:id/approve", validate({ params: idParams, body: z.object({ planId: z.string(), dueDate: z.coerce.date() }) }), async (req, res) => {
+  const plan = await prisma.saasPlan.findFirstOrThrow({ where: { id: req.body.planId, isActive: true } });
+  const shop = await prisma.$transaction(async tx => {
+    const updated = await tx.barbershop.update({ where: { id: req.params.id }, data: { approvalStatus: "approved", saasStatus: "active", subscriptionStatus: "active", saasPlanId: plan.id, saasPlansId: plan.id } });
+    await tx.user.updateMany({ where: { barbershopId: updated.id, role: "admin" }, data: { isActive: true } });
+    await tx.saasInvoice.create({ data: { barbershopId: updated.id, amount: plan.price, dueDate: req.body.dueDate, paymentMethod: "pix", pixPayload: createPixPayload(Number(plan.price), `UPB${updated.id.slice(-12)}`) } });
+    return updated;
+  });
+  const owner = await prisma.user.findFirst({ where: { barbershopId: shop.id, role: "admin" } });
+  if (owner) await sendMail(owner.email, "Cadastro UpBarber aprovado", emailLayout("Cadastro aprovado", "<p>Seu acesso ao UpBarber foi liberado.</p>"));
+  return ok(res, shop);
+});
+
+router.patch("/registrations/:id/reject", validate({ params: idParams }), async (req, res) => {
+  const shop = await prisma.barbershop.update({ where: { id: req.params.id }, data: { approvalStatus: "rejected", saasStatus: "cancelled", subscriptionStatus: "cancelled" } });
+  return ok(res, shop);
 });
 
 router.get("/barbershops/:id", validate({ params: idParams }), async (req, res) => {
@@ -217,10 +258,18 @@ router.post("/invoices/generate-monthly", async (_req, res) => {
 });
 
 router.post("/invoices/:id/charge", validate({ params: idParams, body: z.object({ method: z.string() }) }), async (req, res) => {
-  if (!env.PAGARME_API_KEY && !env.STRIPE_SECRET_KEY) {
-    throw new AppError(503, "PAYMENT_GATEWAY_NOT_CONFIGURED", "Configure Pagar.me ou Stripe para realizar cobranças");
-  }
-  throw new AppError(501, "PAYMENT_GATEWAY_ADAPTER_REQUIRED", "O adaptador do gateway configurado ainda não foi habilitado");
+  if (req.body.method !== "pix") throw new AppError(400, "PIX_ONLY", "No momento, aceitamos apenas Pix");
+  const invoice = await prisma.saasInvoice.findUniqueOrThrow({ where: { id: req.params.id }, include: { barbershop: { include: { users: { where: { role: "admin" }, take: 1 } } } } });
+  const charge = await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`);
+  await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { paymentMethod: "pix", pixPayload: charge.copyPaste } });
+  const email = invoice.barbershop.users[0]?.email ?? invoice.barbershop.email;
+  if (email) await sendMail(email, `Cobrança UpBarber - ${invoice.barbershop.name}`, emailLayout("Pagamento via Pix", `<p>Valor: <strong>R$ ${Number(invoice.amount).toFixed(2)}</strong></p><p>Vencimento: ${invoice.dueDate.toLocaleDateString("pt-BR")}</p><p>Chave Pix CNPJ: 52.671.137/0001-71 - Banco do Brasil</p><p style="word-break:break-all">${charge.copyPaste}</p>`));
+  return ok(res, charge);
+});
+
+router.get("/invoices/:id/pix", validate({ params: idParams }), async (req, res) => {
+  const invoice = await prisma.saasInvoice.findUniqueOrThrow({ where: { id: req.params.id } });
+  return ok(res, await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`));
 });
 
 router.patch("/invoices/:id/mark-paid", validate({ params: idParams, body: z.object({ method: z.string().optional(), paidAt: z.string().optional() }) }), async (req, res) => {
@@ -299,6 +348,19 @@ router.post("/support/tickets/:id/reply", validate({ params: idParams, body: z.o
 });
 router.patch("/support/tickets/:id", validate({ params: idParams, body: z.object({ status: z.string().optional(), priority: z.string().optional(), assigneeId: z.string().nullable().optional() }) }), async (req, res) => ok(res, await prisma.supportTicket.update({ where: { id: req.params.id }, data: req.body })));
 
+router.post("/notices", validate({ body: z.object({ barbershopId: z.string().optional(), title: z.string().min(2), message: z.string().min(2), sendEmail: z.boolean().default(true) }) }), async (req, res) => {
+  const shops = await prisma.barbershop.findMany({ where: req.body.barbershopId ? { id: req.body.barbershopId } : { approvalStatus: "approved" }, include: { users: { where: { role: "admin", isActive: true } } } });
+  let emails = 0;
+  for (const shop of shops) {
+    await prisma.notification.create({ data: { barbershopId: shop.id, type: "info", title: req.body.title, message: req.body.message } });
+    if (req.body.sendEmail) for (const owner of shop.users) {
+      await sendMail(owner.email, req.body.title, emailLayout(req.body.title, `<p>${req.body.message}</p>`));
+      emails++;
+    }
+  }
+  return created(res, { notified: shops.length, emails });
+});
+
 router.get("/config", async (_req, res) => {
   const rows = await prisma.platformConfig.findMany();
   return ok(res, Object.fromEntries(rows.map(row => [row.key, isSensitive(row.key) ? "••••••••" : row.value])));
@@ -348,5 +410,7 @@ async function firstUserId(barbershopId: string) {
 function isSensitive(key: string) {
   return ["smtp_pass", "stripe_secret_key", "stripe_webhook_secret"].includes(key);
 }
+
+const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 
 export default router;

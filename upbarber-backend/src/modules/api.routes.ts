@@ -14,12 +14,14 @@ import { barberSchema, clientSchema, financialTransactionSchema, hhmm, idParams,
 import { crudRouter } from "../shared/utils/crud-router.js";
 import authRoutes from "./auth.routes.js";
 import { env } from "../shared/env.js";
+import { createPixCharge } from "../shared/utils/pix.js";
 import { auditLog, selectedBranchId, v2Router, withBranch } from "./v2.routes.js";
 import masterRoutes from "./master.routes.js";
 
 const router = Router();
 router.use("/auth", authRoutes);
 router.use("/master", masterRoutes);
+router.get("/public/plans", async (_req, res) => ok(res, await prisma.saasPlan.findMany({ where: { isActive: true }, orderBy: { price: "asc" } })));
 
 router.post("/banners/:id/view", validate({ params: idParams }), async (req, res) => ok(res, await prisma.banner.update({ where: { id: req.params.id }, data: { viewCount: { increment: 1 } } })));
 router.post("/banners/:id/click", validate({ params: idParams }), async (req, res) => ok(res, await prisma.banner.update({ where: { id: req.params.id }, data: { clickCount: { increment: 1 } } })));
@@ -110,7 +112,7 @@ router.post("/users", authorize("admin"), validate({ body: z.object({
   role: z.enum(["admin", "barber", "receptionist"])
 }) }), async (req, res) => {
   const passwordHash = await bcrypt.hash(req.body.password, 10);
-  const user = await prisma.user.create({ data: { barbershopId: tenantId(req), name: req.body.name, email: req.body.email, passwordHash, role: req.body.role } });
+  const user = await prisma.user.create({ data: { barbershopId: tenantId(req), name: req.body.name, email: req.body.email, passwordHash, role: req.body.role, emailVerifiedAt: new Date() } });
   return created(res, { ...user, passwordHash: undefined });
 });
 
@@ -232,6 +234,11 @@ router.use("/support", buildTenantSupportRouter());
 
 router.get("/saas/plans", async (_req, res) => ok(res, await prisma.saasPlan.findMany({ where: { isActive: true }, orderBy: { price: "asc" } })));
 router.get("/saas/plans/:id", validate({ params: idParams }), async (req, res) => ok(res, await prisma.saasPlan.findUnique({ where: { id: req.params.id } })));
+router.get("/saas/invoices/current", async (req, res) => {
+  const invoice = await prisma.saasInvoice.findFirst({ where: { barbershopId: tenantId(req), status: { in: ["pending", "overdue"] } }, orderBy: { dueDate: "asc" } });
+  if (!invoice) return ok(res, null);
+  return ok(res, { ...invoice, pix: await createPixCharge(Number(invoice.amount), `UPB${invoice.id.slice(-12)}`) });
+});
 router.post("/saas/plans", authorize("saas_admin"), validate({ body: z.object({ name: z.string(), price: z.coerce.number(), maxBarbers: z.number().nullable().optional(), maxClients: z.number().nullable().optional(), features: z.any().default({}), isActive: z.boolean().optional() }) }), async (req, res) => created(res, await prisma.saasPlan.create({ data: req.body })));
 router.put("/saas/plans/:id", authorize("saas_admin"), validate({ params: idParams, body: z.object({ name: z.string().optional(), price: z.coerce.number().optional(), maxBarbers: z.number().nullable().optional(), maxClients: z.number().nullable().optional(), features: z.any().optional(), isActive: z.boolean().optional() }) }), async (req, res) => ok(res, await prisma.saasPlan.update({ where: { id: req.params.id }, data: req.body })));
 router.delete("/saas/plans/:id", authorize("saas_admin"), validate({ params: idParams }), async (req, res) => { await prisma.saasPlan.update({ where: { id: req.params.id }, data: { isActive: false } }); return noContent(res); });

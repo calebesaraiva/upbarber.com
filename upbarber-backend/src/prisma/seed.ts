@@ -5,6 +5,9 @@ import { addMinutes, addMonths, sameDateOnly } from "../shared/utils/time.js";
 const prisma = new PrismaClient();
 
 async function main() {
+  const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
+  const initialAdminPassword = process.env.INITIAL_ADMIN_PASSWORD;
+  if (!initialAdminEmail || !initialAdminPassword) throw new Error("Defina INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD");
   await prisma.$transaction([
     prisma.financialTransaction.deleteMany(),
     prisma.commissionReport.deleteMany(),
@@ -51,11 +54,11 @@ async function main() {
 
   const barbershop = await prisma.barbershop.create({
     data: {
-      name: "UpBarber Demo",
+      name: "UpBarber Inicial",
       phone: "(11) 99999-0000",
       whatsapp: "(11) 99999-0000",
       email: "contato@upbarber.com",
-      address: "Rua Demo, 100",
+      address: "Endereço inicial",
       city: "São Paulo",
       state: "SP",
       saasPlansId: pro.id,
@@ -70,7 +73,7 @@ async function main() {
     data: {
       barbershopId: barbershop.id,
       name: "Matriz",
-      address: "Rua Demo, 100",
+      address: "Endereço inicial",
       neighborhood: "Centro",
       city: "São Paulo",
       state: "SP",
@@ -87,8 +90,9 @@ async function main() {
     data: {
       barbershopId: barbershop.id,
       name: "Admin UpBarber",
-      email: "admin@upbarber.com",
-      passwordHash: await bcrypt.hash("123456", 10),
+      email: initialAdminEmail,
+      passwordHash: await bcrypt.hash(initialAdminPassword, 10),
+      emailVerifiedAt: new Date(),
       role: "admin"
     }
   });
@@ -162,7 +166,7 @@ async function main() {
     prisma.client.create({
       data: {
         barbershopId: barbershop.id,
-        name: `Cliente Demo ${index + 1}`,
+        name: `Cliente Inicial ${index + 1}`,
         phone: `(11) 98888-00${String(index + 1).padStart(2, "0")}`,
         email: `cliente${index + 1}@email.com`,
         birthdate: new Date(1990 + index, 5, 14),
@@ -222,7 +226,7 @@ async function main() {
     data: {
       barbershopId: barbershop.id,
       name,
-      description: `${name} demo`,
+      description: `${name} inicial`,
       category: index < 4 ? "Cabelo" : index < 6 ? "Ferramentas" : index < 9 ? "Bebidas" : "Barba",
       salePrice: 15 + index * 5,
       costPrice: 8 + index * 3,
@@ -260,7 +264,7 @@ async function main() {
 
   await prisma.notification.createMany({
     data: [
-      { barbershopId: barbershop.id, userId: admin.id, type: "success", title: "Bem-vindo", message: "Ambiente demo criado com sucesso." },
+      { barbershopId: barbershop.id, userId: admin.id, type: "success", title: "Bem-vindo", message: "Ambiente inicial criado com sucesso." },
       { barbershopId: barbershop.id, userId: admin.id, type: "warning", title: "Estoque baixo", message: `${products[0].name} está abaixo do mínimo.`, relatedEntity: "product", relatedId: products[0].id }
     ]
   });
@@ -288,11 +292,11 @@ async function main() {
   });
 
   await prisma.cashRegister.create({
-    data: { barbershopId: barbershop.id, branchId: branch.id, openedById: admin.id, openingBalance: 100, notes: "Caixa demo aberto" }
+    data: { barbershopId: barbershop.id, branchId: branch.id, openedById: admin.id, openingBalance: 100, notes: "Caixa inicial aberto" }
   });
 
   await prisma.auditLog.create({
-    data: { barbershopId: barbershop.id, branchId: branch.id, userId: admin.id, module: "Sistema", action: "Seed demo v2 executado", ipAddress: "127.0.0.1" }
+    data: { barbershopId: barbershop.id, branchId: branch.id, userId: admin.id, module: "Sistema", action: "Carga inicial executada", ipAddress: "127.0.0.1" }
   });
 
   console.log({ starter: starter.id, pro: pro.id, business: business.id, barbershop: barbershop.id, branch: branch.id, admin: admin.email });

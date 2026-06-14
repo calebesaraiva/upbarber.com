@@ -11,7 +11,7 @@ describe("UpBarber API end-to-end", () => {
   beforeAll(async () => {
     const userLogin = await request(app)
       .post("/api/v1/auth/login")
-      .send({ email: "admin@upbarber.com.br", password: "123456" });
+      .send({ email: "admin@upbarber.com", password: "123456" });
 
     const masterLogin = await request(app)
       .post("/api/v1/master/auth/login")
@@ -26,7 +26,7 @@ describe("UpBarber API end-to-end", () => {
   it("rejects invalid credentials without crashing", async () => {
     const invalid = await request(app)
       .post("/api/v1/auth/login")
-      .send({ email: "admin@upbarber.com.br", password: "invalid" });
+      .send({ email: "admin@upbarber.com", password: "invalid" });
     expect(invalid.status).toBe(401);
 
     const health = await request(app).get("/health");
@@ -213,6 +213,13 @@ describe("UpBarber API end-to-end", () => {
     expect(provisioned.body.data.invoice.status).toBe("paid");
     expect(provisioned.body.data.barbershop.saasPlanId).toBe(planId);
     const shopId = provisioned.body.data.barbershop.id;
+    const pix = await request(app)
+      .get(`/api/v1/master/invoices/${provisioned.body.data.invoice.id}/pix`)
+      .set("Authorization", `Bearer ${masterToken}`);
+    expect(pix.status).toBe(200);
+    expect(pix.body.data.copyPaste).toMatch(/^000201/);
+    expect(pix.body.data.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
+    expect(pix.body.data.key).toBe("52.671.137/0001-71");
 
     try {
       const login = await request(app).post("/api/v1/auth/login").send({ email, password });

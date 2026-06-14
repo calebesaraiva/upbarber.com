@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function Login() {
   const { login } = useAuth();
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ email: 'admin@upbarber.com', password: '123456' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -89,9 +89,6 @@ export default function Login() {
             <Link to="/cadastro" className="text-gold hover:text-gold-light transition-colors font-medium">Criar conta grátis</Link>
           </p>
 
-          <div className="mt-8 p-3 bg-dark-300/50 rounded-xl border border-dark-400">
-            <p className="text-xs text-gray-500 text-center">Demo: <span className="text-gold">admin@upbarber.com</span> / <span className="text-gold">123456</span></p>
-          </div>
         </div>
       </div>
     </div>

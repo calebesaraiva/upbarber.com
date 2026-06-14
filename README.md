@@ -19,12 +19,6 @@ npm run dev
 
 Acesse: **http://localhost:5173**
 
-### Login de Demonstração
-- **E-mail:** admin@upbarber.com
-- **Senha:** 123456
-
----
-
 ## 🏗️ Build para Produção
 
 ```bash
@@ -158,17 +152,8 @@ src/
 - **Modais** para criar/editar registros
 - **Gráficos interativos** no dashboard e relatórios
 - **Filtros e buscas** em todas as listagens
-- **Simulação de automação WhatsApp** com QR code e fluxos
+- **Automação WhatsApp** preparada para integração com provedor real
 - **Sistema de assinaturas** completo com controle de inadimplência
-
----
-
-## 🔑 Credenciais Demo
-
-```
-Email: admin@upbarber.com
-Senha: 123456
-```
 
 ---
 

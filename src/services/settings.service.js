@@ -17,4 +17,5 @@ export const settingsService = {
   updateUser: (id, data) => api.put(`/users/${id}`, data),
   deleteUser: (id) => api.delete(`/users/${id}`),
   getSaasPlans: () => api.get('/saas/plans'),
+  getCurrentSaasInvoice: () => api.get('/saas/invoices/current'),
 };

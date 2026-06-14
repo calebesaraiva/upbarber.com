@@ -24,6 +24,16 @@ const envSchema = z.object({
   STRIPE_PUBLIC_KEY: z.string().default(""),
   STRIPE_SECRET_KEY: z.string().default(""),
   STRIPE_WEBHOOK_SECRET: z.string().default("")
+  ,SMTP_HOST: z.string().default("smtp.hostinger.com")
+  ,SMTP_PORT: z.coerce.number().default(465)
+  ,SMTP_USER: z.string().default("")
+  ,SMTP_PASS: z.string().default("")
+  ,SMTP_FROM_EMAIL: z.string().default("")
+  ,SMTP_FROM_NAME: z.string().default("UpBarber")
+  ,APP_URL: z.string().default("http://localhost:5174")
+  ,PIX_KEY: z.string().default("52671137000171")
+  ,PIX_RECEIVER_NAME: z.string().default("NEXUS TECNOLOGIA LTDA")
+  ,PIX_RECEIVER_CITY: z.string().default("SAO PAULO")
 });
 
 export const env = envSchema.parse(process.env);
