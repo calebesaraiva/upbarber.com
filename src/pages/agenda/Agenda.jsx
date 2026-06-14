@@ -9,6 +9,12 @@ import { useApp } from '../../context/AppContext';
 import { localDateInputValue } from '../../utils/date';
 import { useBranch } from '../../context/BranchContext';
 
+function unwrapList(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
 export default function Agenda() {
   const navigate = useNavigate();
   const { addToast } = useApp();
@@ -27,12 +33,12 @@ export default function Agenda() {
         appointmentsService.list({ date, barberId: barberId || undefined, branchId: branchId || undefined, limit: 100 }),
         barbersService.list({ branchId: branchId || undefined }),
       ]);
-      const allItems = a.data.data?.data || [];
+      const allItems = unwrapList(a.data.data);
       const filtered = branchId === 'all'
         ? allItems
         : allItems.filter(item => item.branchId === branchId || !item.branchId);
       setItems(filtered);
-      setBarbers(b.data.data?.data || b.data.data || []);
+      setBarbers(unwrapList(b.data.data));
     } catch {
       addToast('Erro ao carregar agenda', 'error');
     } finally {

@@ -67,7 +67,7 @@ export default function NovoAgendamento() {
       if (editing) await appointmentsService.update(editing.id, payload);
       else await appointmentsService.create(payload);
       addToast(editing ? 'Agendamento atualizado!' : 'Agendamento criado!', 'success');
-      navigate('/agenda');
+      navigate('/agenda', { replace: true, state: { refreshAt: Date.now() } });
     } catch (err) {
       addToast(err.response?.data?.error?.message || 'Falha ao salvar agendamento', 'error');
     }
