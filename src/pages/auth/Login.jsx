@@ -4,13 +4,12 @@ import {
   ArrowRight,
   BadgeCheck,
   Check,
-  CalendarDays,
-  DollarSign,
   ChevronRight,
   Crown,
   Eye,
   EyeOff,
   LogIn,
+  Play,
   RefreshCw,
   Rocket,
   ShieldCheck,
@@ -278,9 +277,9 @@ export default function Login() {
     <div className="min-h-screen bg-[#060607] text-white relative overflow-x-hidden">
       {/* Background */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(212,175,55,0.12),transparent)]" />
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(139,92,246,0.07),transparent_60%)]" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-[radial-gradient(circle,rgba(16,185,129,0.06),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(212,175,55,0.14),transparent)]" />
+        <div className="absolute top-0 right-0 w-[520px] h-[520px] bg-[radial-gradient(circle,rgba(139,92,246,0.08),transparent_60%)]" />
+        <div className="absolute bottom-0 left-0 w-[440px] h-[440px] bg-[radial-gradient(circle,rgba(16,185,129,0.06),transparent_60%)]" />
       </div>
 
       {showPlansModal && (
@@ -289,7 +288,7 @@ export default function Login() {
 
       <main className="relative z-10 min-h-screen flex flex-col">
         {/* Nav bar */}
-        <nav className="flex items-center justify-between px-5 sm:px-8 py-5">
+        <nav className="flex items-center justify-between px-5 sm:px-8 py-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-gold rounded-lg flex items-center justify-center text-dark shadow-md shadow-gold/20">
               <Sparkles size={15} />
@@ -313,71 +312,74 @@ export default function Login() {
         </nav>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-12 px-5 sm:px-8 py-8 lg:py-0 max-w-6xl mx-auto w-full">
-          {/* Left: hero */}
-          <div className="w-full lg:flex-1 lg:max-w-lg text-center lg:text-left order-2 lg:order-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/8 px-3.5 py-1.5 text-xs text-gold font-semibold mb-5">
-              <BadgeCheck size={13} /> Sistema para barbearias · Aprovação manual
+        <div className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-16 px-5 sm:px-8 py-6 lg:py-0 max-w-6xl mx-auto w-full">
+          {/* Left: hero — hidden on small screens to keep login the focus */}
+          <div className="hidden lg:block lg:flex-1 lg:max-w-lg text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/8 px-3.5 py-1.5 text-xs text-gold font-semibold mb-6">
+              <BadgeCheck size={13} /> Sistema completo para barbearias
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-[52px] font-black leading-[1.05] tracking-tight">
+            <h1 className="text-[44px] xl:text-[52px] font-black leading-[1.05] tracking-tight">
               Gestão completa<br />
               <span className="text-gold">para barbearias</span><br />
               que crescem.
             </h1>
 
-            <p className="mt-5 text-base text-gray-400 leading-7 max-w-md mx-auto lg:mx-0">
+            <p className="mt-5 text-base text-gray-400 leading-7 max-w-md">
               Agenda, financeiro, comissões, clube de assinaturas e muito mais. Tudo em um só lugar, feito para a realidade da sua barbearia.
             </p>
 
-            <div className="mt-8 flex flex-col sm:flex-row items-center gap-3 justify-center lg:justify-start">
-              <Link
-                to="/cadastro"
-                className="btn-primary py-3 px-6 w-full sm:w-auto justify-center"
-              >
-                <ArrowRight size={16} /> Iniciar pré-cadastro
-              </Link>
-              <button
-                onClick={() => setShowPlansModal(true)}
-                className="btn-secondary py-3 px-6 w-full sm:w-auto justify-center"
-              >
-                Ver planos e preços
-              </button>
-            </div>
-
             {/* Trust indicators */}
-            <div className="mt-10 grid grid-cols-3 gap-3">
+            <div className="mt-9 grid grid-cols-3 gap-3">
               {[
                 { label: 'Pré-cadastro', desc: 'Simples e guiado' },
-                { label: 'Pix na liberação', desc: 'Código QR no 1º acesso' },
-                { label: 'Suporte humano', desc: 'Painel master dedicado' },
+                { label: 'Pix na liberação', desc: 'QR no 1º acesso' },
+                { label: 'Suporte humano', desc: 'Painel dedicado' },
               ].map(item => (
-                <div key={item.label} className="rounded-xl border border-white/8 bg-white/3 p-3 text-center">
+                <div key={item.label} className="rounded-xl border border-white/8 bg-white/3 p-3.5 text-center">
                   <p className="text-xs font-semibold text-white">{item.label}</p>
                   <p className="text-[11px] text-gray-500 mt-1 leading-4">{item.desc}</p>
                 </div>
               ))}
             </div>
+
+            <button
+              onClick={() => setShowPlansModal(true)}
+              className="mt-7 inline-flex items-center gap-1.5 text-sm font-semibold text-gold hover:text-gold-light transition-colors"
+            >
+              Ver planos e preços <ArrowRight size={15} />
+            </button>
           </div>
 
-          {/* Right: login form */}
-          <div className="w-full sm:max-w-sm lg:max-w-[400px] order-1 lg:order-2">
-            <div className="rounded-2xl border border-white/10 bg-[#0d0d0e]/90 backdrop-blur-xl p-7 shadow-2xl shadow-black/40">
-              <div className="flex items-center gap-3 mb-7">
-                <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/20 flex items-center justify-center text-gold">
-                  <ShieldCheck size={19} />
+          {/* Right: login card */}
+          <div className="w-full max-w-[420px] mx-auto lg:mx-0">
+            {/* Mobile-only headline above the card */}
+            <div className="lg:hidden text-center mb-6">
+              <h1 className="text-3xl sm:text-4xl font-black leading-tight tracking-tight">
+                Gestão completa para<br /><span className="text-gold">barbearias que crescem.</span>
+              </h1>
+              <p className="mt-3 text-sm text-gray-400 leading-6 max-w-sm mx-auto">
+                Agenda, financeiro, comissões e clube de assinaturas em um só lugar.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-[#0d0d0e]/90 backdrop-blur-xl p-6 sm:p-7 shadow-2xl shadow-black/50">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 rounded-2xl bg-gold/12 border border-gold/20 flex items-center justify-center text-gold flex-shrink-0">
+                  <ShieldCheck size={20} />
                 </div>
-                <div>
-                  <h2 className="text-lg font-black text-white">Acessar conta</h2>
-                  <p className="text-xs text-gray-500">Bem-vindo de volta ao {COMPANY.product}</p>
+                <div className="min-w-0">
+                  <h2 className="text-xl font-black text-white leading-tight">Acessar conta</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Bem-vindo de volta ao {COMPANY.product}</p>
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">E-mail</label>
+                  <label htmlFor="login-email" className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5 block">E-mail</label>
                   <input
-                    className="input"
+                    id="login-email"
+                    className="input py-2.5"
                     type="email"
                     autoComplete="email"
                     value={form.email}
@@ -388,14 +390,15 @@ export default function Login() {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Senha</label>
+                    <label htmlFor="login-password" className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Senha</label>
                     <Link to="/recuperar-senha" className="text-[11px] text-gold hover:text-gold-light transition-colors">
                       Esqueci a senha
                     </Link>
                   </div>
                   <div className="relative">
                     <input
-                      className="input pr-10"
+                      id="login-password"
+                      className="input py-2.5 pr-11"
                       type={show ? 'text' : 'password'}
                       autoComplete="current-password"
                       value={form.password}
@@ -406,9 +409,10 @@ export default function Login() {
                     <button
                       type="button"
                       onClick={() => setShow(!show)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                      aria-label={show ? 'Ocultar senha' : 'Mostrar senha'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors p-1"
                     >
-                      {show ? <EyeOff size={15} /> : <Eye size={15} />}
+                      {show ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
@@ -422,15 +426,15 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="btn-primary w-full justify-center py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="btn-primary w-full justify-center py-3 text-[15px] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <LogIn size={15} />
+                  <LogIn size={16} />
                   {loading ? 'Entrando...' : 'Entrar na conta'}
                 </button>
               </form>
 
               {masterChallenge && (
-                <form onSubmit={handleMasterCodeSubmit} className="mt-5 rounded-[24px] border border-gold/20 bg-gold/10 p-4 space-y-3">
+                <form onSubmit={handleMasterCodeSubmit} className="mt-5 rounded-2xl border border-gold/20 bg-gold/10 p-4 space-y-3">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gold/15 text-gold flex items-center justify-center flex-shrink-0">
                       <ShieldCheck size={18} />
@@ -442,7 +446,7 @@ export default function Login() {
                     </div>
                   </div>
                   <input
-                    className="input text-center tracking-[0.35em] font-bold"
+                    className="input text-center tracking-[0.35em] font-bold py-3"
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength={6}
@@ -452,146 +456,61 @@ export default function Login() {
                   />
                   <div className="flex gap-2">
                     <button type="button" onClick={resendMasterCode} className="btn-secondary flex-1 justify-center" disabled={loading}>
-                      <RefreshCw size={15} /> Reenviar código
+                      <RefreshCw size={15} /> Reenviar
                     </button>
                     <button type="submit" className="btn-primary flex-1 justify-center" disabled={loading || masterCode.length !== 6}>
-                      <Check size={15} /> Confirmar acesso
+                      <Check size={15} /> Confirmar
                     </button>
                   </div>
                 </form>
               )}
 
-              <div className="mt-6 pt-6 border-t border-white/6">
-                <p className="text-xs text-gray-500 text-center">
-                  Ainda não tem conta?{' '}
-                  <Link to="/cadastro" className="text-gold hover:text-gold-light font-semibold transition-colors">
-                    Fazer pré-cadastro
-                  </Link>
-                </p>
-              </div>
-
-              <div className="mt-4 rounded-xl bg-gold/6 border border-gold/15 p-4">
-                <p className="text-xs text-gray-300 leading-5">
-                  Quer conhecer os planos antes de criar a conta?{' '}
-                  <button
-                    onClick={() => setShowPlansModal(true)}
-                    className="text-gold hover:text-gold-light font-semibold transition-colors"
-                  >
-                    Ver planos →
-                  </button>
-                </p>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/4 p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500 font-bold">O que você vai ver</p>
-                    <h3 className="text-sm font-semibold text-white mt-1">Uma experiência completa, pronta para apresentar ao cliente</h3>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/15 flex items-center justify-center text-gold flex-shrink-0">
-                    <BadgeCheck size={18} />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="rounded-xl bg-black/20 border border-white/5 p-3">
-                    <div className="flex items-center gap-2 text-gold">
-                      <CalendarDays size={14} />
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold">Agenda</p>
-                    </div>
-                    <p className="text-xs text-gray-300 mt-2 leading-5">Fluxo de agendamento, horários, barbeiros e visão por filial.</p>
-                  </div>
-                  <div className="rounded-xl bg-black/20 border border-white/5 p-3">
-                    <div className="flex items-center gap-2 text-emerald-300">
-                      <DollarSign size={14} />
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold">Financeiro</p>
-                    </div>
-                    <p className="text-xs text-gray-300 mt-2 leading-5">Caixa, vendas, assinatura e rateio inteligente por unidade.</p>
-                  </div>
-                  <div className="rounded-xl bg-black/20 border border-white/5 p-3">
-                    <div className="flex items-center gap-2 text-purple-300">
-                      <Crown size={14} />
-                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold">Plano</p>
-                    </div>
-                    <p className="text-xs text-gray-300 mt-2 leading-5">Plano ativo, benefícios e jornada premium da plataforma.</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {['Cadastro guiado', 'Múltiplas filiais', 'Estoque real', 'Relatórios reais'].map(item => (
-                    <span key={item} className="px-2.5 py-1 rounded-full bg-gold/10 border border-gold/15 text-[10px] text-gold font-semibold">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
               {SHOW_DEMO_ACCESS && (
-                <div className="mt-4 rounded-2xl border border-gold/20 bg-[linear-gradient(180deg,rgba(212,175,55,0.12),rgba(255,255,255,0.03))] p-4 space-y-4 shadow-lg shadow-black/20">
-                  <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-gold/15 border border-gold/20 flex items-center justify-center text-gold flex-shrink-0">
-                      <Sparkles size={18} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-[11px] uppercase tracking-[0.24em] text-gold font-black">Demonstração guiada</p>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-semibold">Ativo</span>
-                      </div>
-                      <p className="text-sm text-white font-semibold mt-1">Conheça a experiência real antes de contratar.</p>
-                      <p className="text-xs text-gray-300 mt-1 leading-5">
-                        Explore agenda, caixa, estoque, filial, planos e relatórios com dados preparados para apresentação comercial.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl bg-black/20 border border-white/5 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Agenda</p>
-                      <p className="text-xs font-semibold text-white mt-0.5">Ao vivo</p>
-                    </div>
-                    <div className="rounded-xl bg-black/20 border border-white/5 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Financeiro</p>
-                      <p className="text-xs font-semibold text-white mt-0.5">Completo</p>
-                    </div>
-                    <div className="rounded-xl bg-black/20 border border-white/5 px-3 py-2">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Planos</p>
-                      <p className="text-xs font-semibold text-white mt-0.5">Visíveis</p>
-                    </div>
+                <>
+                  <div className="flex items-center gap-3 my-3.5">
+                    <div className="flex-1 h-px bg-white/8" />
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-gray-600 font-semibold">ou conheça antes</span>
+                    <div className="flex-1 h-px bg-white/8" />
                   </div>
 
                   <button
                     type="button"
                     onClick={handleDemoAccess}
                     disabled={loading || demoLoading}
-                    className="btn-primary w-full justify-center py-3.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border border-gold/25 bg-gold/8 hover:bg-gold/12 text-gold font-semibold text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <ArrowRight size={16} />
-                    {demoLoading ? 'Abrindo a demonstração...' : 'Acessar demonstração premium'}
+                    <Play size={15} fill="currentColor" />
+                    {demoLoading ? 'Abrindo demonstração...' : 'Entrar na demonstração'}
                   </button>
-
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <p className="text-[11px] text-gray-400 leading-5">
-                      Acesso demo: <span className="text-white font-medium">demo@upbarber.com</span> · <span className="text-white font-medium">Demo@12345</span>
-                    </p>
-                    <p className="text-[11px] text-gray-500">Experiência preparada para compra.</p>
-                  </div>
-                </div>
+                  <p className="mt-2 text-center text-[11px] text-gray-500">
+                    Explore o sistema completo com dados de exemplo — sem cadastro.
+                  </p>
+                </>
               )}
+
+              <div className="mt-4 pt-4 border-t border-white/6 text-center">
+                <p className="text-sm text-gray-400">
+                  Ainda não tem conta?{' '}
+                  <Link to="/cadastro" className="text-gold hover:text-gold-light font-semibold transition-colors">
+                    Fazer pré-cadastro
+                  </Link>
+                </p>
+              </div>
             </div>
 
             {/* Mobile plans button */}
-          <button
-            onClick={() => setShowPlansModal(true)}
-            className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-white transition-colors py-2"
-          >
-            Ver planos e preços <ChevronRight size={14} />
-          </button>
+            <button
+              onClick={() => setShowPlansModal(true)}
+              className="lg:hidden mt-5 w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-white transition-colors py-2"
+            >
+              Ver planos e preços <ChevronRight size={14} />
+            </button>
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="px-5 sm:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-gray-600 border-t border-white/5">
-          <p>{COMPANY_LEGAL_LINE}</p>
+        <footer className="px-5 sm:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-gray-600 border-t border-white/5">
+          <p className="text-center sm:text-left">{COMPANY_LEGAL_LINE}</p>
           <div className="flex items-center gap-4">
             <Link to="/termos" className="hover:text-gray-400 transition-colors">Termos & LGPD</Link>
             <a href={`mailto:${COMPANY.email}`} className="hover:text-gray-400 transition-colors">{COMPANY.email}</a>
