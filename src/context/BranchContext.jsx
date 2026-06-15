@@ -45,13 +45,17 @@ export function BranchProvider({ children }) {
 
     setBranches(data);
     const saved = localStorage.getItem('upbarber:branchId');
-    const found = data.find(b => b.id === saved) || data.find(b => b.isMain) || data[0] || null;
-    if (found) {
-      setCurrentBranch(found);
-      localStorage.setItem('upbarber:branchId', found.id);
-    } else {
+    if (saved === 'all') {
       setCurrentBranch(null);
-      localStorage.removeItem('upbarber:branchId');
+    } else {
+      const found = data.find(b => b.id === saved) || data.find(b => b.isMain) || data[0] || null;
+      if (found) {
+        setCurrentBranch(found);
+        localStorage.setItem('upbarber:branchId', found.id);
+      } else {
+        setCurrentBranch(null);
+        localStorage.removeItem('upbarber:branchId');
+      }
     }
     setReady(true);
     return data;
@@ -81,8 +85,15 @@ export function BranchProvider({ children }) {
   }, [loadBranches]);
 
   const changeBranch = (branch) => {
+    if (!branch || branch === 'all') {
+      setCurrentBranch(null);
+      localStorage.setItem('upbarber:branchId', 'all');
+      window.dispatchEvent(new Event('upbarber-auth-changed'));
+      return;
+    }
     setCurrentBranch(branch);
     localStorage.setItem('upbarber:branchId', branch.id);
+    window.dispatchEvent(new Event('upbarber-auth-changed'));
   };
 
   return (

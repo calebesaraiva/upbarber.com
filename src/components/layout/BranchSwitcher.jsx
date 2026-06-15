@@ -7,10 +7,13 @@ export function BranchSwitcher({ mobile = false }) {
   const { branches, currentBranch, changeBranch } = useBranch();
 
   const handleBranchChange = (id) => {
+    if (id === 'all') {
+      changeBranch('all');
+      return;
+    }
     const branch = branches.find(item => item.id === id);
     if (!branch) return;
     changeBranch(branch);
-    window.location.reload();
   };
 
   if (mobile) {
@@ -23,10 +26,11 @@ export function BranchSwitcher({ mobile = false }) {
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Filial ativa</p>
             <select
-              value={currentBranch?.id || ''}
+              value={currentBranch?.id || 'all'}
               onChange={(e) => handleBranchChange(e.target.value)}
               className="w-full bg-transparent text-sm font-medium text-white outline-none cursor-pointer truncate"
             >
+              <option value="all">Todas as filiais</option>
               {branches.length === 0 && <option value="">Nenhuma filial</option>}
               {branches.map(branch => (
                 <option key={branch.id} value={branch.id}>

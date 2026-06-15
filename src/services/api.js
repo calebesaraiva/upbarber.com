@@ -14,7 +14,8 @@ api.interceptors.request.use(config => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
   const branchId = localStorage.getItem('upbarber:branchId');
-  if (branchId) config.headers['X-Branch-Id'] = branchId;
+  if (branchId && branchId !== 'all') config.headers['X-Branch-Id'] = branchId;
+  else delete config.headers['X-Branch-Id'];
 
   return config;
 });
