@@ -373,6 +373,133 @@ function commissionsRouter() {
   return r;
 }
 
+export async function buildBranchRevenueSplit(req: any, start: Date, end: Date) {
+  const shopId = tenantId(req);
+  const branchId = selectedBranchId(req);
+  const branchWhere = branchId ? { id: branchId } : {};
+
+  const [branches, transactions, subscriberAppointments, subscriptionPayments] = await Promise.all([
+    prisma.branch.findMany({
+      where: { barbershopId: shopId, ...branchWhere },
+      orderBy: [{ isMain: "desc" }, { name: "asc" }],
+      select: { id: true, name: true, isMain: true }
+    }),
+    prisma.financialTransaction.findMany({
+      where: {
+        barbershopId: shopId,
+        ...(branchId ? { branchId } : {}),
+        type: "income",
+        status: "completed",
+        date: { gte: start, lte: end }
+      },
+      select: { amount: true, branchId: true }
+    }),
+    prisma.appointment.findMany({
+      where: {
+        barbershopId: shopId,
+        ...(branchId ? { branchId } : {}),
+        isSubscriber: true,
+        status: "completed",
+        date: { gte: start, lte: end }
+      },
+      include: { service: { select: { price: true } } }
+    }),
+    prisma.subscriptionPayment.findMany({
+      where: {
+        barbershopId: shopId,
+        status: "paid",
+        paidAt: { gte: start, lte: end }
+      },
+      select: { amount: true }
+    })
+  ]);
+
+  const bucketMap = new Map<string, {
+    id: string;
+    name: string;
+    isMain: boolean;
+    directIncome: number;
+    subscriberAppointments: number;
+    subscriberUsageValue: number;
+    allocatedSubscription: number;
+    totalAttributedIncome: number;
+    sharePercent: number;
+  }>();
+
+  const ensureBucket = (id: string, name: string, isMain = false) => {
+    if (!bucketMap.has(id)) {
+      bucketMap.set(id, {
+        id,
+        name,
+        isMain,
+        directIncome: 0,
+        subscriberAppointments: 0,
+        subscriberUsageValue: 0,
+        allocatedSubscription: 0,
+        totalAttributedIncome: 0,
+        sharePercent: 0
+      });
+    }
+    return bucketMap.get(id)!;
+  };
+
+  for (const branch of branches) ensureBucket(branch.id, branch.name, branch.isMain);
+
+  let operationalIncome = 0;
+  for (const tx of transactions) {
+    const bucketId = tx.branchId ?? "sem-filial";
+    const bucket = ensureBucket(bucketId, bucketId === "sem-filial" ? "Sem filial" : "Filial sem nome");
+    const amount = Number(tx.amount);
+    bucket.directIncome += amount;
+    operationalIncome += amount;
+  }
+
+  let subscriptionRevenue = 0;
+  for (const payment of subscriptionPayments) subscriptionRevenue += Number(payment.amount);
+
+  let totalSubscriberUsageValue = 0;
+  for (const appointment of subscriberAppointments) {
+    const bucketId = appointment.branchId ?? "sem-filial";
+    const bucket = ensureBucket(bucketId, bucketId === "sem-filial" ? "Sem filial" : "Filial sem nome");
+    const usageValue = Number(appointment.service?.price ?? 0);
+    bucket.subscriberAppointments += 1;
+    bucket.subscriberUsageValue += usageValue;
+    totalSubscriberUsageValue += usageValue;
+  }
+
+  const grossIncome = operationalIncome + subscriptionRevenue;
+  for (const bucket of bucketMap.values()) {
+    bucket.allocatedSubscription = totalSubscriberUsageValue > 0 ? (subscriptionRevenue * bucket.subscriberUsageValue) / totalSubscriberUsageValue : 0;
+    bucket.totalAttributedIncome = bucket.directIncome + bucket.allocatedSubscription;
+    bucket.sharePercent = grossIncome > 0 ? (bucket.totalAttributedIncome / grossIncome) * 100 : 0;
+  }
+
+  const branchesData = [...bucketMap.values()].sort((a, b) => {
+    if (a.isMain !== b.isMain) return a.isMain ? -1 : 1;
+    return b.totalAttributedIncome - a.totalAttributedIncome;
+  });
+
+  return {
+    allocationMethod: "Rateio por uso real dos assinantes, com base no valor dos serviços consumidos por filial",
+    period: {
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10)
+    },
+    central: {
+      operationalIncome,
+      subscriptionRevenue,
+      grossIncome
+    },
+    branches: branchesData,
+    totals: {
+      branches: branchesData.length,
+      directIncome: operationalIncome,
+      subscriptionRevenue,
+      grossIncome
+    }
+  };
+}
+
 function advancedReportsRouter() {
   const r = Router();
 
@@ -431,10 +558,16 @@ function advancedReportsRouter() {
     }
     const chart = Object.entries(byDay).sort().map(([date, value]) => ({ date, value }));
     const total = transactions.reduce((s, t) => s + Number(t.amount), 0);
-    const payload = { period: { start: startStr, end: endStr }, summary: { total, count: transactions.length }, chart, table: chart, totals: { revenue: total } };
+    const branchSummary = await buildBranchRevenueSplit(req, start, end);
+    const payload = { period: { start: startStr, end: endStr }, summary: { total, count: transactions.length }, chart, table: chart, totals: { revenue: total }, branchSummary };
     if (req.query.format === "pdf") return generatePdf(res, "Receita por Período", chart, { Total: `R$ ${total.toFixed(2)}`, Transações: transactions.length });
     if (req.query.format === "csv") return res.type("text/csv").send(["data,valor", ...chart.map(r => `${r.date},${r.value}`)].join("\n"));
     return ok(res, payload);
+  });
+
+  r.get("/financial/branch-summary", async (req, res) => {
+    const { start, end } = parsePeriod(req);
+    return ok(res, await buildBranchRevenueSplit(req, start, end));
   });
 
   // Financial: Payment methods

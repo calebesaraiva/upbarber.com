@@ -4,6 +4,7 @@ const base = '/reports/advanced';
 
 export const reportsService = {
   getRevenue: (p) => api.get(`${base}/financial/revenue`, { params: p }),
+  getBranchSummary: (p) => api.get(`${base}/financial/branch-summary`, { params: p }),
   getPaymentMethods: (p) => api.get(`${base}/financial/payment-methods`, { params: p }),
   getMovements: (p) => api.get(`${base}/financial/movements`, { params: p }),
   getSales: (p) => api.get(`${base}/financial/sales`, { params: p }),

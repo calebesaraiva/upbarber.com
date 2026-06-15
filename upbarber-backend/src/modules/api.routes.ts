@@ -16,7 +16,7 @@ import { crudRouter } from "../shared/utils/crud-router.js";
 import authRoutes from "./auth.routes.js";
 import { env } from "../shared/env.js";
 import { createPixCharge } from "../shared/utils/pix.js";
-import { auditLog, selectedBranchId, v2Router, withBranch } from "./v2.routes.js";
+import { auditLog, buildBranchRevenueSplit, selectedBranchId, v2Router, withBranch } from "./v2.routes.js";
 import masterRoutes from "./master.routes.js";
 
 const router = Router();
@@ -884,6 +884,7 @@ async function buildFullReport(req: any, period: string) {
   ]);
 
   const revenue = financialSummary(transactions);
+  const branchSummary = await buildBranchRevenueSplit(req, start, end);
 
   const barberMap: Record<string, { id: string; name: string; count: number; revenue: number }> = {};
   const serviceMap: Record<string, { id: string; name: string; count: number; revenue: number }> = {};
@@ -917,6 +918,7 @@ async function buildFullReport(req: any, period: string) {
     paymentMethods: pmMap,
     expenses: { total: revenue.totalExpense, byCategory: revenue.byCategory },
     profit: revenue.profit,
+    branchSummary,
   };
 }
 

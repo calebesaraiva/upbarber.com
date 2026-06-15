@@ -90,6 +90,7 @@ export default function Reports() {
   const services = data?.services || [];
   const barbers = data?.barbers || [];
   const pmMap = data?.paymentMethods || {};
+  const branchSummary = data?.branchSummary;
 
   const pmData = Object.entries(pmMap).map(([name, count]) => ({ name, count }));
 
@@ -145,6 +146,61 @@ export default function Reports() {
             <Stat icon={Calendar} label="Agendamentos" value={appointments?.total ?? 0} sub={`${appointments?.completed ?? 0} concluídos · ${appointments?.cancelled ?? 0} cancelados`} color="text-blue-400" />
             <Stat icon={Users} label="Clientes" value={clients?.active ?? 0} sub={`${clients?.new ?? 0} novos no período`} color="text-purple-400" />
           </div>
+
+          {branchSummary && (
+            <div className="card space-y-4">
+              <div>
+                <h3 className="section-title">Rateio por filial</h3>
+                <p className="text-sm text-gray-500 mt-1">{branchSummary.allocationMethod}</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-dark-400 bg-dark-300 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Operação</p>
+                  <p className="text-lg font-semibold text-white mt-1">{money(branchSummary.central?.operationalIncome)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Receita direta por atendimento e vendas</p>
+                </div>
+                <div className="rounded-xl border border-dark-400 bg-dark-300 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Assinatura central</p>
+                  <p className="text-lg font-semibold text-gold mt-1">{money(branchSummary.central?.subscriptionRevenue)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Cobranças mensais do SaaS</p>
+                </div>
+                <div className="rounded-xl border border-dark-400 bg-dark-300 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Receita bruta</p>
+                  <p className="text-lg font-semibold text-emerald-400 mt-1">{money(branchSummary.central?.grossIncome)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Operação + assinatura</p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      {['Filial', 'Direta', 'Uso de assinantes', 'Rateio assinatura', 'Total atribuído', '% do grupo'].map(h => (
+                        <th key={h} className="table-header text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branchSummary.branches?.map((branch) => (
+                      <tr key={branch.id} className="border-t border-dark-400">
+                        <td className="table-cell">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">{branch.name}</span>
+                            {branch.isMain && <span className="badge badge-gold">Matriz</span>}
+                          </div>
+                        </td>
+                        <td className="table-cell text-emerald-400 font-semibold">{money(branch.directIncome)}</td>
+                        <td className="table-cell text-gray-300">{money(branch.subscriberUsageValue)}</td>
+                        <td className="table-cell text-gold font-semibold">{money(branch.allocatedSubscription)}</td>
+                        <td className="table-cell text-white font-semibold">{money(branch.totalAttributedIncome)}</td>
+                        <td className="table-cell text-gray-400">{Number(branch.sharePercent || 0).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-2 gap-4">
             {/* Top Services */}
