@@ -462,23 +462,32 @@ router.get("/invoices", validate({ query: pagingQuery }), async (req, res) => {
 });
 
 router.post("/invoices/generate-monthly", async (_req, res) => {
-  const shops = await prisma.barbershop.findMany({ where: { saasStatus: { in: ["active", "overdue"] }, saasPlanId: { not: null } }, include: { masterSaasPlan: true } });
-  const dueDate = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1);
+  const shops = await prisma.barbershop.findMany({
+    where: { saasStatus: { in: ["active", "overdue"] }, saasPlanId: { not: null } },
+    include: {
+      masterSaasPlan: true,
+      invoices: { orderBy: { dueDate: "desc" }, take: 1 }
+    }
+  });
+  const now = new Date();
   let createdCount = 0;
   let chargedCount = 0;
   for (const shop of shops) {
+    const latestInvoice = shop.invoices[0];
+    if (!latestInvoice || latestInvoice.status !== "paid") continue;
+    const dueDate = nextBillingDueDate(latestInvoice.dueDate);
+    if (dueDate > now) continue;
     const exists = await prisma.saasInvoice.findFirst({ where: { barbershopId: shop.id, dueDate } });
-    if (!exists) {
-      const invoice = await prisma.saasInvoice.create({ data: { barbershopId: shop.id, amount: shop.masterSaasPlan?.price ?? 0, dueDate, status: "pending", paymentMethod: "pix" } });
-      const charge = await createPixCharge(Number(invoice.amount), invoice.id, {
-        dueDate: invoice.dueDate,
-        description: `Mensalidade UpBarber - ${shop.name}`,
-        reference: invoice.id
-      });
-      await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { pixPayload: charge.copyPaste, gatewayRef: charge.txid, paymentMethod: "pix" } });
-      createdCount++;
-      chargedCount++;
-    }
+    if (exists) continue;
+    const invoice = await prisma.saasInvoice.create({ data: { barbershopId: shop.id, amount: shop.masterSaasPlan?.price ?? 0, dueDate, status: "pending", paymentMethod: "pix" } });
+    const charge = await createPixCharge(Number(invoice.amount), invoice.id, {
+      dueDate: invoice.dueDate,
+      description: `Mensalidade UpBarber - ${shop.name}`,
+      reference: invoice.id
+    });
+    await prisma.saasInvoice.update({ where: { id: invoice.id }, data: { pixPayload: charge.copyPaste, gatewayRef: charge.txid, paymentMethod: "pix" } });
+    createdCount++;
+    chargedCount++;
   }
   return created(res, { created: createdCount, charged: chargedCount });
 });
@@ -672,6 +681,20 @@ function monthSeries(months: number) {
     date.setMonth(date.getMonth() - (months - 1 - i));
     return { month: date.toISOString().slice(0, 7) };
   });
+}
+
+function nextBillingDueDate(previousDueDate: Date) {
+  const next = new Date(previousDueDate);
+  const originalDay = next.getDate();
+  const hours = next.getHours();
+  const minutes = next.getMinutes();
+  const seconds = next.getSeconds();
+  const milliseconds = next.getMilliseconds();
+  next.setMonth(next.getMonth() + 1, 1);
+  const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(originalDay, maxDay));
+  next.setHours(hours, minutes, seconds, milliseconds);
+  return next;
 }
 
 async function firstUserId(barbershopId: string) {
