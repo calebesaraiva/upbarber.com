@@ -38,6 +38,8 @@ const DEMO_ACCESS = {
   password: 'Demo@12345',
 };
 
+const SHOW_DEMO_ACCESS = import.meta.env.VITE_ENABLE_DEMO_ACCESS === 'true';
+
 function getPlanMeta(plan, index) {
   const slug = plan.slug || ['starter', 'pro', 'business'][index] || 'starter';
   return {
@@ -478,43 +480,45 @@ export default function Login() {
                 </p>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/4 p-4 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/15 flex items-center justify-center text-gold flex-shrink-0">
-                    <Sparkles size={18} />
+              {SHOW_DEMO_ACCESS && (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/4 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/15 flex items-center justify-center text-gold flex-shrink-0">
+                      <Sparkles size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-gold font-bold">Acesso de demonstração</p>
+                      <p className="text-sm text-white font-semibold mt-1">Teste o UpBarber como dono de barbearia.</p>
+                      <p className="text-xs text-gray-400 mt-1 leading-5">
+                        Entre com dados reais de demonstração para ver agenda, clientes, vendas, planos e relatórios.
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] uppercase tracking-[0.22em] text-gold font-bold">Acesso de demonstração</p>
-                    <p className="text-sm text-white font-semibold mt-1">Teste o UpBarber como dono de barbearia.</p>
-                    <p className="text-xs text-gray-400 mt-1 leading-5">
-                      Entre com dados reais de demonstração para ver agenda, clientes, vendas, planos e relatórios.
-                    </p>
-                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleDemoAccess}
+                    disabled={loading || demoLoading}
+                    className="btn-secondary w-full justify-center py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <ArrowRight size={16} />
+                    {demoLoading ? 'Entrando na demonstração...' : 'Entrar na demonstração agora'}
+                  </button>
+
+                  <p className="text-[11px] text-gray-500 leading-5">
+                    Acesso de demonstração: demo@upbarber.com · Senha: Demo@12345
+                  </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleDemoAccess}
-                  disabled={loading || demoLoading}
-                  className="btn-secondary w-full justify-center py-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <ArrowRight size={16} />
-                  {demoLoading ? 'Entrando na demonstração...' : 'Entrar na demonstração agora'}
-                </button>
-
-                <p className="text-[11px] text-gray-500 leading-5">
-                  Acesso de demonstração: demo@upbarber.com · Senha: Demo@12345
-                </p>
-              </div>
+              )}
             </div>
 
             {/* Mobile plans button */}
-            <button
-              onClick={() => setShowPlansModal(true)}
-              className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-white transition-colors py-2"
-            >
-              Ver planos e preços <ChevronRight size={14} />
-            </button>
+          <button
+            onClick={() => setShowPlansModal(true)}
+            className="sm:hidden mt-4 w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-white transition-colors py-2"
+          >
+            Ver planos e preços <ChevronRight size={14} />
+          </button>
           </div>
         </div>
 
