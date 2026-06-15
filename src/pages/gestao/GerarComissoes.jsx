@@ -11,7 +11,7 @@ export default function GerarComissoes() {
   const { branches, currentBranch, ready } = useBranch();
   const [branchView, setBranchView] = useState('current');
   const handleAllBranches = () => setBranchView('all');
-  const handleCurrentBranch = () => setBranchView(prev => (prev === 'current' || prev === currentBranch?.id ? 'all' : currentBranch?.id || 'all'));
+  const handleCurrentBranch = () => setBranchView(prev => (prev === 'current' ? 'all' : 'current'));
   const handleBranch = (id) => setBranchView(prev => (prev === id ? 'all' : id));
 
   const activeBranchId = branchView === 'all'
@@ -38,7 +38,7 @@ export default function GerarComissoes() {
       <PageHeader title="Comissões" subtitle="Relatórios de comissão por barbeiro" />
       <div className="flex flex-wrap gap-2">
         <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={handleAllBranches}>Todas as filiais</button>
-        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={handleCurrentBranch}>Filial atual</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={handleCurrentBranch}>Filial atual</button>
         {branches.map(branch => (
           <button
             key={branch.id}

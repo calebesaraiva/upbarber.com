@@ -26,20 +26,21 @@ export default function Agenda() {
   const [loading, setLoading] = useState(false);
   const [branchId, setBranchId] = useState('all');
   const handleAllBranches = () => setBranchId('all');
-  const handleCurrentBranch = () => setBranchId(prev => (prev === 'current' || prev === currentBranch?.id ? 'all' : currentBranch?.id || 'all'));
+  const activeBranchId = branchId === 'all' ? 'all' : branchId === 'current' ? (currentBranch?.id || 'all') : branchId;
+  const handleCurrentBranch = () => setBranchId(prev => (prev === 'current' ? 'all' : 'current'));
   const handleBranch = (id) => setBranchId(prev => (prev === id ? 'all' : id));
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [a, b] = await Promise.all([
-        appointmentsService.list({ date, barberId: barberId || undefined, branchId: branchId || undefined, limit: 100 }),
-        barbersService.list({ branchId: branchId || undefined }),
+        appointmentsService.list({ date, barberId: barberId || undefined, branchId: activeBranchId || undefined, limit: 100 }),
+        barbersService.list({ branchId: activeBranchId || undefined }),
       ]);
       const allItems = unwrapList(a.data.data);
-      const filtered = branchId === 'all'
+      const filtered = activeBranchId === 'all'
         ? allItems
-        : allItems.filter(item => item.branchId === branchId || !item.branchId);
+        : allItems.filter(item => item.branchId === activeBranchId || !item.branchId);
       setItems(filtered);
       setBarbers(unwrapList(b.data.data));
     } catch {
@@ -47,7 +48,7 @@ export default function Agenda() {
     } finally {
       setLoading(false);
     }
-  }, [addToast, date, barberId, branchId]);
+  }, [addToast, date, barberId, activeBranchId]);
 
   useEffect(() => {
     if (!ready) return;
@@ -83,7 +84,7 @@ export default function Agenda() {
         <button className="btn-secondary" onClick={() => move(-1)}><ChevronLeft size={15} /></button>
         <input className="input w-auto" type="date" value={date} onChange={e => setDate(e.target.value)} />
         <button className="btn-secondary" onClick={() => move(1)}><ChevronRight size={15} /></button>
-        <select className="input w-auto" value={branchId} onChange={e => setBranchId(e.target.value)}>
+        <select className="input w-auto" value={branchId === 'current' ? currentBranch?.id || 'all' : branchId} onChange={e => setBranchId(e.target.value)}>
           <option value="all">Todas as filiais</option>
           {currentBranch?.id && <option value={currentBranch.id}>Filial atual</option>}
           {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}{branch.isMain ? ' · Matriz' : ''}</option>)}
@@ -99,7 +100,7 @@ export default function Agenda() {
           {currentBranch?.id && (
             <button
               type="button"
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${(branchId === 'current' || branchId === currentBranch.id) ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchId === 'current' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`}
               onClick={handleCurrentBranch}
             >
               Filial atual
