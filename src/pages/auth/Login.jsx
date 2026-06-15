@@ -481,17 +481,35 @@ export default function Login() {
               </div>
 
               {SHOW_DEMO_ACCESS && (
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/4 p-4 space-y-3">
+                <div className="mt-4 rounded-2xl border border-gold/20 bg-[linear-gradient(180deg,rgba(212,175,55,0.12),rgba(255,255,255,0.03))] p-4 space-y-4 shadow-lg shadow-black/20">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/15 flex items-center justify-center text-gold flex-shrink-0">
+                    <div className="w-11 h-11 rounded-xl bg-gold/15 border border-gold/20 flex items-center justify-center text-gold flex-shrink-0">
                       <Sparkles size={18} />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-[0.22em] text-gold font-bold">Acesso de demonstração</p>
-                      <p className="text-sm text-white font-semibold mt-1">Teste o UpBarber como dono de barbearia.</p>
-                      <p className="text-xs text-gray-400 mt-1 leading-5">
-                        Entre com dados reais de demonstração para ver agenda, clientes, vendas, planos e relatórios.
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-gold font-black">Demonstração guiada</p>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-semibold">Ativo</span>
+                      </div>
+                      <p className="text-sm text-white font-semibold mt-1">Conheça a experiência real antes de contratar.</p>
+                      <p className="text-xs text-gray-300 mt-1 leading-5">
+                        Explore agenda, caixa, estoque, filial, planos e relatórios com dados preparados para apresentação comercial.
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-black/20 border border-white/5 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Agenda</p>
+                      <p className="text-xs font-semibold text-white mt-0.5">Ao vivo</p>
+                    </div>
+                    <div className="rounded-xl bg-black/20 border border-white/5 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Financeiro</p>
+                      <p className="text-xs font-semibold text-white mt-0.5">Completo</p>
+                    </div>
+                    <div className="rounded-xl bg-black/20 border border-white/5 px-3 py-2">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">Planos</p>
+                      <p className="text-xs font-semibold text-white mt-0.5">Visíveis</p>
                     </div>
                   </div>
 
@@ -499,15 +517,18 @@ export default function Login() {
                     type="button"
                     onClick={handleDemoAccess}
                     disabled={loading || demoLoading}
-                    className="btn-secondary w-full justify-center py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="btn-primary w-full justify-center py-3.5 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <ArrowRight size={16} />
-                    {demoLoading ? 'Entrando na demonstração...' : 'Entrar na demonstração agora'}
+                    {demoLoading ? 'Abrindo a demonstração...' : 'Acessar demonstração premium'}
                   </button>
 
-                  <p className="text-[11px] text-gray-500 leading-5">
-                    Acesso de demonstração: demo@upbarber.com · Senha: Demo@12345
-                  </p>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <p className="text-[11px] text-gray-400 leading-5">
+                      Acesso demo: <span className="text-white font-medium">demo@upbarber.com</span> · <span className="text-white font-medium">Demo@12345</span>
+                    </p>
+                    <p className="text-[11px] text-gray-500">Experiência preparada para compra.</p>
+                  </div>
                 </div>
               )}
             </div>
