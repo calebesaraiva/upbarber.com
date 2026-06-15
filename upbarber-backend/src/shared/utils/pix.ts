@@ -100,28 +100,30 @@ async function createEfiCharge(amount: number, txid: string, settings: GatewaySe
   const agent = createEfiAgent(settings);
   const original = amount.toFixed(2);
   const description = options.description ?? "Cobrança mensal UpBarber";
-  const body = options.dueDate
+  const debtor = buildDebtor(options);
+  const hasCompleteDueDebtor = Boolean(options.dueDate && debtor && (debtor.cpf || debtor.cnpj));
+  const body = hasCompleteDueDebtor
     ? {
         calendario: {
-          dataDeVencimento: toDateOnly(options.dueDate),
+          dataDeVencimento: toDateOnly(options.dueDate!),
           validadeAposVencimento: 30
         },
         valor: { original },
         chave: settings.efi_pix_key ?? settings.pix_key ?? env.EFI_PIX_KEY ?? env.PIX_KEY,
         solicitacaoPagador: description,
-        devedor: buildDebtor(options)
+        devedor: debtor
       }
     : {
         calendario: {
-          expiracao: options.expirationSeconds ?? 3600
+          expiracao: options.expirationSeconds ?? expirationFromDueDate(options.dueDate) ?? 3600
         },
         valor: { original },
         chave: settings.efi_pix_key ?? settings.pix_key ?? env.EFI_PIX_KEY ?? env.PIX_KEY,
         solicitacaoPagador: description,
-        devedor: buildDebtor(options)
+        ...(debtor ? { devedor: debtor } : {})
       };
 
-  const created = await requestEfiJson(baseUrl, agent, "PUT", `/v2/${options.dueDate ? "cobv" : "cob"}/${txid}`, token, body);
+  const created = await requestEfiJson(baseUrl, agent, "PUT", `/v2/${hasCompleteDueDebtor ? "cobv" : "cob"}/${txid}`, token, body);
   const pixCopy = created?.pixCopiaECola ?? created?.pixCopiaEcola ?? null;
   const locId = created?.loc?.id ?? created?.loc?.idLoc ?? null;
   let qrCode = created?.imagemQrcode ?? null;
@@ -289,6 +291,13 @@ async function loadGatewaySettings(): Promise<GatewaySettings> {
 function toDateOnly(value: Date | string) {
   const date = typeof value === "string" ? new Date(value) : value;
   return date.toISOString().slice(0, 10);
+}
+
+function expirationFromDueDate(dueDate?: Date | string | null) {
+  if (!dueDate) return null;
+  const date = typeof dueDate === "string" ? new Date(dueDate) : dueDate;
+  const delta = Math.floor((date.getTime() - Date.now()) / 1000);
+  return Number.isFinite(delta) ? Math.max(delta, 3600) : null;
 }
 
 function formatPixKey(value: string) {
