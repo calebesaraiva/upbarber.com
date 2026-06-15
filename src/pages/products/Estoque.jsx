@@ -6,6 +6,12 @@ import { useApp } from '../../context/AppContext';
 import { useBranch } from '../../context/BranchContext';
 import { Modal } from '../../components/ui/Modal';
 
+function unwrapList(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
 export default function Estoque() {
   const { addToast } = useApp();
   const { ready, currentBranch, branches } = useBranch();
@@ -13,10 +19,15 @@ export default function Estoque() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferProduct, setTransferProduct] = useState(null);
   const [transferForm, setTransferForm] = useState({ targetBranchId: '', quantity: 1 });
-  const load = () => productsService.list().then(res=>setProducts(res.data.data?.data || []));
+  const load = async () => {
+    const res = await productsService.list();
+    setProducts(unwrapList(res.data.data));
+  };
   useEffect(() => {
     if (!ready) return;
-    load();
+    load().catch(() => {
+      addToast('Falha ao carregar estoque', 'error');
+    });
   }, [ready, currentBranch?.id]);
   const adjust = async (product, delta) => {
     try {
@@ -59,19 +70,27 @@ export default function Estoque() {
     <PageHeader title="Controle de Estoque" subtitle="Movimentações persistidas na API" />
     <div className="mb-4 text-xs text-gray-500">Filial ativa: <span className="text-gold font-medium">{currentBranch?.name || 'Todas'}</span></div>
     <div className="card p-0">
-      {products.map(p=><div key={p.id} className="flex flex-wrap items-center gap-3 p-4 border-b border-dark-400">
-        <Package size={15} className="text-gold"/>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-white truncate">{p.name}</p>
-          <p className="text-xs text-gray-500">Mínimo: {p.minStock}</p>
+      {products.length === 0 ? (
+        <div className="p-8 text-center">
+          <Package size={28} className="mx-auto text-gray-600 mb-2" />
+          <p className="text-sm text-gray-400">Nenhum produto encontrado nesta filial.</p>
+          <p className="text-xs text-gray-600 mt-1">Se você acabou de cadastrar, confirme se a filial ativa é a mesma do cadastro.</p>
         </div>
-        <strong className={p.stock<=p.minStock?'text-red-400':'text-white'}>{p.stock}</strong>
-        <button className="btn-secondary" onClick={()=>adjust(p,-1)}><Minus size={13}/></button>
-        <button className="btn-primary" onClick={()=>adjust(p,1)}><Plus size={13}/></button>
-        {destinationBranches.length > 0 && (
-          <button className="btn-secondary" onClick={() => openTransfer(p)}><ArrowLeftRight size={13}/> Transferir</button>
-        )}
-      </div>)}
+      ) : (
+        products.map(p => <div key={p.id} className="flex flex-wrap items-center gap-3 p-4 border-b border-dark-400">
+          <Package size={15} className="text-gold"/>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-white truncate">{p.name}</p>
+            <p className="text-xs text-gray-500">Mínimo: {p.minStock}</p>
+          </div>
+          <strong className={p.stock<=p.minStock?'text-red-400':'text-white'}>{p.stock}</strong>
+          <button className="btn-secondary" onClick={()=>adjust(p,-1)}><Minus size={13}/></button>
+          <button className="btn-primary" onClick={()=>adjust(p,1)}><Plus size={13}/></button>
+          {destinationBranches.length > 0 && (
+            <button className="btn-secondary" onClick={() => openTransfer(p)}><ArrowLeftRight size={13}/> Transferir</button>
+          )}
+        </div>)
+      )}
     </div>
 
     <Modal isOpen={transferOpen} onClose={() => setTransferOpen(false)} title="Transferir estoque">
