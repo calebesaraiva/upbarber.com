@@ -12,6 +12,9 @@ export default function RelatorioAvancado() {
   const [split, setSplit] = useState(null);
 
   const activeBranchId = branchView === 'all' ? 'all' : branchView === 'current' ? (currentBranch?.id || 'all') : branchView;
+  const handleAllBranches = () => setBranchView('all');
+  const handleCurrentBranch = () => setBranchView(prev => (prev === 'current' || prev === currentBranch?.id ? 'all' : currentBranch?.id || 'all'));
+  const handleBranch = (id) => setBranchView(prev => (prev === id ? 'all' : id));
 
   useEffect(() => {
     if (!ready) return;
@@ -30,10 +33,10 @@ export default function RelatorioAvancado() {
       <PageHeader title="Relatório Avançado" subtitle="Receita central, operação e rateio por filial" />
 
       <div className="flex flex-wrap gap-2">
-        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView('all')}>Todas as filiais</button>
-        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(currentBranch?.id || 'all')}>Filial atual</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={handleAllBranches}>Todas as filiais</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={handleCurrentBranch}>Filial atual</button>
         {branches.map(branch => (
-          <button key={branch.id} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(branch.id)}>
+          <button key={branch.id} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => handleBranch(branch.id)}>
             {branch.name}
           </button>
         ))}

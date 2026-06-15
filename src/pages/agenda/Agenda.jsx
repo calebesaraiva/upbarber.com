@@ -25,6 +25,9 @@ export default function Agenda() {
   const [barberId, setBarberId] = useState('');
   const [loading, setLoading] = useState(false);
   const [branchId, setBranchId] = useState('all');
+  const handleAllBranches = () => setBranchId('all');
+  const handleCurrentBranch = () => setBranchId(prev => (prev === 'current' || prev === currentBranch?.id ? 'all' : currentBranch?.id || 'all'));
+  const handleBranch = (id) => setBranchId(prev => (prev === id ? 'all' : id));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,6 +88,34 @@ export default function Agenda() {
           {currentBranch?.id && <option value={currentBranch.id}>Filial atual</option>}
           {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.name}{branch.isMain ? ' · Matriz' : ''}</option>)}
         </select>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchId === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`}
+            onClick={handleAllBranches}
+          >
+            Todas as filiais
+          </button>
+          {currentBranch?.id && (
+            <button
+              type="button"
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${(branchId === 'current' || branchId === currentBranch.id) ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`}
+              onClick={handleCurrentBranch}
+            >
+              Filial atual
+            </button>
+          )}
+          {branches.map(branch => (
+            <button
+              key={branch.id}
+              type="button"
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchId === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`}
+              onClick={() => handleBranch(branch.id)}
+            >
+              {branch.name}{branch.isMain ? ' · Matriz' : ''}
+            </button>
+          ))}
+        </div>
         <select className="input w-auto" value={barberId} onChange={e => setBarberId(e.target.value)}>
           <option value="">Todos os barbeiros</option>
           {barbers.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}

@@ -10,6 +10,9 @@ export default function GerarComissoes() {
   const [items, setItems] = useState([]);
   const { branches, currentBranch, ready } = useBranch();
   const [branchView, setBranchView] = useState('current');
+  const handleAllBranches = () => setBranchView('all');
+  const handleCurrentBranch = () => setBranchView(prev => (prev === 'current' || prev === currentBranch?.id ? 'all' : currentBranch?.id || 'all'));
+  const handleBranch = (id) => setBranchView(prev => (prev === id ? 'all' : id));
 
   const activeBranchId = branchView === 'all'
     ? 'all'
@@ -34,13 +37,13 @@ export default function GerarComissoes() {
     <div className="space-y-5">
       <PageHeader title="Comissões" subtitle="Relatórios de comissão por barbeiro" />
       <div className="flex flex-wrap gap-2">
-        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView('all')}>Todas as filiais</button>
-        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={() => setBranchView(currentBranch?.id || 'all')}>Filial atual</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'all' ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={handleAllBranches}>Todas as filiais</button>
+        <button className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === 'current' || branchView === currentBranch?.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`} onClick={handleCurrentBranch}>Filial atual</button>
         {branches.map(branch => (
           <button
             key={branch.id}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${branchView === branch.id ? 'bg-gold text-dark' : 'bg-dark-300 text-gray-400 hover:text-white'}`}
-            onClick={() => setBranchView(branch.id)}
+            onClick={() => handleBranch(branch.id)}
           >
             {branch.name}
           </button>
