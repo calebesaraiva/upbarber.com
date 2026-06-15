@@ -38,7 +38,7 @@ const DEMO_ACCESS = {
   password: 'Demo@12345',
 };
 
-const SHOW_DEMO_ACCESS = import.meta.env.VITE_ENABLE_DEMO_ACCESS === 'true';
+const SHOW_DEMO_ACCESS = import.meta.env.VITE_ENABLE_DEMO_ACCESS !== 'false';
 
 function getPlanMeta(plan, index) {
   const slug = plan.slug || ['starter', 'pro', 'business'][index] || 'starter';
