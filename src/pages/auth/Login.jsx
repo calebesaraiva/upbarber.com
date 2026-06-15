@@ -4,6 +4,8 @@ import {
   ArrowRight,
   BadgeCheck,
   Check,
+  CalendarDays,
+  DollarSign,
   ChevronRight,
   Crown,
   Eye,
@@ -478,6 +480,50 @@ export default function Login() {
                     Ver planos →
                   </button>
                 </p>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/4 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500 font-bold">O que você vai ver</p>
+                    <h3 className="text-sm font-semibold text-white mt-1">Uma experiência completa, pronta para apresentar ao cliente</h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/15 flex items-center justify-center text-gold flex-shrink-0">
+                    <BadgeCheck size={18} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-black/20 border border-white/5 p-3">
+                    <div className="flex items-center gap-2 text-gold">
+                      <CalendarDays size={14} />
+                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold">Agenda</p>
+                    </div>
+                    <p className="text-xs text-gray-300 mt-2 leading-5">Fluxo de agendamento, horários, barbeiros e visão por filial.</p>
+                  </div>
+                  <div className="rounded-xl bg-black/20 border border-white/5 p-3">
+                    <div className="flex items-center gap-2 text-emerald-300">
+                      <DollarSign size={14} />
+                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold">Financeiro</p>
+                    </div>
+                    <p className="text-xs text-gray-300 mt-2 leading-5">Caixa, vendas, assinatura e rateio inteligente por unidade.</p>
+                  </div>
+                  <div className="rounded-xl bg-black/20 border border-white/5 p-3">
+                    <div className="flex items-center gap-2 text-purple-300">
+                      <Crown size={14} />
+                      <p className="text-[10px] uppercase tracking-[0.16em] font-bold">Plano</p>
+                    </div>
+                    <p className="text-xs text-gray-300 mt-2 leading-5">Plano ativo, benefícios e jornada premium da plataforma.</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {['Cadastro guiado', 'Múltiplas filiais', 'Estoque real', 'Relatórios reais'].map(item => (
+                    <span key={item} className="px-2.5 py-1 rounded-full bg-gold/10 border border-gold/15 text-[10px] text-gold font-semibold">
+                      {item}
+                    </span>
+                  ))}
+                </div>
               </div>
 
               {SHOW_DEMO_ACCESS && (
